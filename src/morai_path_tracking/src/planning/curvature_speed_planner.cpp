@@ -170,14 +170,23 @@ CurvatureSpeedPlanner::CurvatureSpeedPlanner(
 }
 
 CurvatureSpeedPlan CurvatureSpeedPlanner::update(
-    const std::vector<Point2d>& path_in_vehicle_frame, double dt_sec) {
+    const std::vector<Point2d>& path_in_vehicle_frame, double dt_sec,
+    double external_speed_limit_mps, double extra_preview_distance_m) {
   requireFinitePositive("dt_sec", dt_sec);
+  if (std::isnan(external_speed_limit_mps) || external_speed_limit_mps < 0.0) {
+    throw std::invalid_argument("invalid external speed limit");
+  }
+  requireFiniteNonNegative("extra_preview_distance_m", extra_preview_distance_m);
+  const double speed_ceiling = std::min(config_.configured_target_speed_mps,
+                                         external_speed_limit_mps);
+  const double preview_distance = std::max(config_.preview_distance_m,
+                                           extra_preview_distance_m);
 
   CurvatureSpeedPlan result;
-  result.raw_target_speed_mps = config_.configured_target_speed_mps;
+  result.raw_target_speed_mps = speed_ceiling;
   result.curvature_speed_limit_mps = config_.configured_target_speed_mps;
   const double maximum_profile_distance_m =
-      std::max(config_.preview_distance_m,
+      std::max(preview_distance,
                config_.lookahead_curvature_preview_distance_m);
   const std::vector<CurvatureSample> profile = buildCurvatureProfile(
       path_in_vehicle_frame, config_.curvature_sample_spacing_m,
@@ -189,7 +198,7 @@ CurvatureSpeedPlan CurvatureSpeedPlanner::update(
           std::max(result.lookahead_curvature_m_inv,
                    sample.curvature_m_inv);
     }
-    if (sample.distance_m > config_.preview_distance_m + 1.0e-12 ||
+    if (sample.distance_m > preview_distance + 1.0e-12 ||
         sample.curvature_m_inv <= config_.curvature_epsilon_m_inv) {
       continue;
     }
@@ -256,6 +265,10 @@ CurvatureSpeedPlan CurvatureSpeedPlanner::update(
                  std::min(maximum_target,
                           result.filtered_target_speed_mps));
   }
+  // A regulatory envelope must not be exceeded by filter/slew-limit history.
+  result.target_speed_mps = std::min(result.target_speed_mps, speed_ceiling);
+  filtered_target_speed_mps_ = std::min(filtered_target_speed_mps_, speed_ceiling);
+  result.filtered_target_speed_mps = filtered_target_speed_mps_;
   last_target_speed_mps_ = result.target_speed_mps;
   return result;
 }

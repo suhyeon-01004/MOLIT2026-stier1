@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(osqp REQUIRED CONFIG)
 
-add_message_files(FILES ControllerStatus.msg)
+add_message_files(FILES ControllerStatus.msg RouteSpeedLimit.msg)
 generate_messages(DEPENDENCIES geometry_msgs std_msgs)
 
 catkin_package(

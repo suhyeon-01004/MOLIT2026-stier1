@@ -76,6 +76,34 @@ TEST(CurvatureSpeedPlanner, StraightPathKeepsConfiguredTarget) {
   EXPECT_NEAR(10.0, result.target_speed_mps, 1.0e-12);
 }
 
+TEST(CurvatureSpeedPlanner, MapCapOverridesFilterAndRetainsAccelerationLimit) {
+  auto config = baseConfig();
+  config.configured_target_speed_mps = 100.0 / 3.6;
+  config.target_speed_filter_time_constant_sec = 1.0;
+  CurvatureSpeedPlanner planner(config);
+  EXPECT_DOUBLE_EQ(planner.update(straightPath(), .03).target_speed_mps, 100.0 / 3.6);
+  const auto ordinary = planner.update(straightPath(), .03, 59.0 / 3.6);
+  EXPECT_LE(ordinary.raw_target_speed_mps, 59.0 / 3.6);
+  EXPECT_LE(ordinary.target_speed_mps, 59.0 / 3.6);
+  EXPECT_LE(ordinary.filtered_target_speed_mps, 59.0 / 3.6);
+  EXPECT_LE(planner.update(straightPath(), .03, 100.0 / 3.6).target_speed_mps,
+            ordinary.target_speed_mps + config.target_speed_acceleration_limit_mps2 * .03);
+  EXPECT_THROW(planner.update(straightPath(), .03, -1.), std::invalid_argument);
+  EXPECT_THROW(planner.update(straightPath(), .03, std::numeric_limits<double>::quiet_NaN()), std::invalid_argument);
+}
+
+TEST(CurvatureSpeedPlanner, HighSpeedPreviewFindsDistantCurve) {
+  auto config = baseConfig();
+  config.configured_target_speed_mps = 100.0 / 3.6;
+  config.curve_approach_deceleration_mps2 = 1.7;
+  CurvatureSpeedPlanner short_preview(config), extended(config);
+  const auto path = straightThenQuarterCircle(100., 15.);
+  const auto old_plan = short_preview.update(path, .03);
+  const auto new_plan = extended.update(path, .03, 100.0 / 3.6, 250.);
+  EXPECT_LT(new_plan.target_speed_mps, old_plan.target_speed_mps);
+  EXPECT_GT(new_plan.speed_limiting_curve_distance_m, 90.);
+}
+
 TEST(CurvatureSpeedPlanner, EstimatesCircumcircleCurvatureAndSpeedLimit) {
   CurvatureSpeedPlanner planner(baseConfig());
 

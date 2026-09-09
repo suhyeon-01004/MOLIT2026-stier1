@@ -31,6 +31,7 @@
 #include "morai_path_tracking/controllers/lateral/pure_pursuit.hpp"
 #include "morai_path_tracking/controllers/lateral/stanley_controller.hpp"
 #include "morai_path_tracking/ControllerStatus.h"
+#include "morai_path_tracking/RouteSpeedLimit.h"
 #include "morai_udp_bridge/ActuatorCommand.h"
 #include "morai_udp_bridge/CompetitionVehicleStatus.h"
 
@@ -133,6 +134,7 @@ ros::WallDuration periodFromRate(double control_rate_hz) {
 }
 
 struct ControllerConfig {
+  bool use_map_speed_limits{false};
   std::string local_path_topic;
   std::string odometry_topic;
   std::string vehicle_status_topic;
@@ -227,6 +229,8 @@ struct LateralControlOutput {
 
 ControllerConfig loadConfig(const ros::NodeHandle& private_node) {
   ControllerConfig config;
+  private_node.param("use_map_speed_limits", config.use_map_speed_limits, false);
+  const double maximum_allowed_kph = config.use_map_speed_limits ? 100.0 : 60.0;
   config.local_path_topic = requiredString(private_node, "local_path_topic");
   config.odometry_topic = requiredString(private_node, "odometry_topic");
   config.vehicle_status_topic =
@@ -757,8 +761,8 @@ ControllerConfig loadConfig(const ros::NodeHandle& private_node) {
       requiredDouble(private_node, "maximum_speed_kph") *
       kKilometresPerHourToMetresPerSecond;
   if (config.longitudinal_mpc.maximum_speed_mps >
-      60.0 * kKilometresPerHourToMetresPerSecond + 1.0e-12) {
-    throw std::invalid_argument("maximum_speed_kph must not exceed 60");
+      maximum_allowed_kph * kKilometresPerHourToMetresPerSecond + 1.0e-12) {
+    throw std::invalid_argument("maximum_speed_kph exceeds allowed ceiling (60 normally, 100 with map limits)");
   }
   config.longitudinal_mpc.hard_brake_activation_speed_mps =
       config.pid.hard_brake_activation_speed_mps;
@@ -866,8 +870,8 @@ ControllerConfig loadConfig(const ros::NodeHandle& private_node) {
   config.mpc.max_steering_rate =
       mpc_maximum_steering_rate_deg_per_sec * kDegreesToRadians;
   requirePositive("mpc_test_speed_limit_kph", mpc_test_speed_limit_kph);
-  if (mpc_test_speed_limit_kph > 60.0) {
-    throw std::invalid_argument("mpc_test_speed_limit_kph must not exceed 60");
+  if (mpc_test_speed_limit_kph > maximum_allowed_kph) {
+    throw std::invalid_argument("mpc_test_speed_limit_kph exceeds allowed ceiling");
   }
   config.mpc_test_speed_limit_mps =
       mpc_test_speed_limit_kph * kKilometresPerHourToMetresPerSecond;
@@ -1007,6 +1011,8 @@ class PathTrackingControllerNode {
   using InputSyncPolicy =
       message_filters::sync_policies::ApproximateTime<nav_msgs::Path,
                                                        nav_msgs::Odometry>;
+  using MapInputSyncPolicy = message_filters::sync_policies::ApproximateTime<
+      nav_msgs::Path, nav_msgs::Odometry, RouteSpeedLimit>;
 
   PathTrackingControllerNode()
       : private_node_("~"),
@@ -1028,6 +1034,10 @@ class PathTrackingControllerNode {
                 static_cast<std::uint32_t>(config_.input_sync_queue_size)),
             path_subscriber_, odometry_subscriber_) {
     private_node_.param("longitudinal_only", longitudinal_only_, false);
+    if (config_.longitudinal_mpc.maximum_speed_mps > 60.0 / 3.6 + 1e-9 &&
+        !longitudinal_only_) {
+      throw std::invalid_argument("Above-60 experiment requires the opt-in Autoware comparison");
+    }
     if (longitudinal_only_ &&
         (config_.command_topic == "/control/actuator_command" ||
          config_.mpc.swept_path_compensation_enabled)) {
@@ -1053,9 +1063,20 @@ class PathTrackingControllerNode {
         &PathTrackingControllerNode::onVehicleStatus, this);
     input_synchronizer_.setMaxIntervalDuration(
         ros::Duration(config_.maximum_input_skew_sec));
-    input_synchronizer_.registerCallback(
-        boost::bind(&PathTrackingControllerNode::onSynchronizedInputs, this,
-                    boost::placeholders::_1, boost::placeholders::_2));
+    if (config_.use_map_speed_limits) {
+      map_speed_subscriber_.subscribe(node_, "/route_speed_limit", config_.input_sync_queue_size);
+      map_input_synchronizer_.reset(new message_filters::Synchronizer<MapInputSyncPolicy>(
+          MapInputSyncPolicy(config_.input_sync_queue_size), path_subscriber_,
+          odometry_subscriber_, map_speed_subscriber_));
+      map_input_synchronizer_->setMaxIntervalDuration(ros::Duration(config_.maximum_input_skew_sec));
+      map_input_synchronizer_->registerCallback(boost::bind(
+          &PathTrackingControllerNode::onMapSynchronizedInputs, this,
+          boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
+    } else {
+      input_synchronizer_.registerCallback(
+          boost::bind(&PathTrackingControllerNode::onSynchronizedInputs, this,
+                      boost::placeholders::_1, boost::placeholders::_2));
+    }
     timer_ = node_.createWallTimer(config_.control_period,
                                    &PathTrackingControllerNode::onTimer, this);
     ROS_INFO(
@@ -1071,6 +1092,13 @@ class PathTrackingControllerNode {
   }
 
  private:
+  void onMapSynchronizedInputs(const nav_msgs::Path::ConstPtr& path,
+                              const nav_msgs::Odometry::ConstPtr& odometry,
+                              const RouteSpeedLimit::ConstPtr& limit) {
+    latest_map_speed_limit_ = limit;
+    onSynchronizedInputs(path, odometry);
+  }
+
   void onSynchronizedInputs(
       const nav_msgs::Path::ConstPtr& path,
       const nav_msgs::Odometry::ConstPtr& odometry) {
@@ -1120,6 +1148,18 @@ class PathTrackingControllerNode {
     }
     const nav_msgs::Path& path_message = *latest_path_;
     const nav_msgs::Odometry& odometry_message = *latest_odometry_;
+    if (config_.use_map_speed_limits) {
+      const auto& limit = latest_map_speed_limit_;
+      if (!limit || limit->header.stamp != path_message.header.stamp ||
+          limit->header.frame_id != config_.expected_frame_id || limit->source_link_id.empty() ||
+          !std::isfinite(limit->current_limit_mps) || !std::isfinite(limit->target_limit_mps) ||
+          limit->current_limit_mps <= 0.0 || limit->target_limit_mps < 0.0 ||
+          limit->target_limit_mps > limit->current_limit_mps + 1e-9 ||
+          limit->current_limit_mps > (limit->high_speed_zone ? 100.0 : 60.0) / 3.6 + 1e-9) {
+        *reason = "INVALID_MAP_SPEED_LIMIT";
+        return false;
+      }
+    }
     if (path_message.header.frame_id != config_.expected_frame_id ||
         odometry_message.header.frame_id != config_.expected_frame_id ||
         path_message.header.stamp.isZero() ||
@@ -1486,8 +1526,18 @@ class PathTrackingControllerNode {
         publishSafe("INVALID_LANE_CLEARANCE_SPEED_LIMIT");
         return;
       }
-      CurvatureSpeedPlan speed_plan =
-          curvature_speed_planner_.update(vehicle_path, dt_sec);
+      const double map_target = config_.use_map_speed_limits
+          ? latest_map_speed_limit_->target_limit_mps
+          : std::numeric_limits<double>::infinity();
+      // At higher speeds retain enough path to decelerate before a curve.
+      // Keep the previously tuned 45 m preview unchanged below 60 km/h.
+      const double braking_preview = config_.use_map_speed_limits &&
+          std::abs(speed_mps) > 60.0 / 3.6
+          ? speed_mps * speed_mps /
+              (2.0 * config_.curvature_speed_planner.curve_approach_deceleration_mps2) + 20.0
+          : 0.0;
+      CurvatureSpeedPlan speed_plan = curvature_speed_planner_.update(
+          vehicle_path, dt_sec, map_target, braking_preview);
       if (config_.lateral_controller == kMpcController) {
         speed_plan.target_speed_mps =
             std::min(speed_plan.target_speed_mps,
@@ -1729,6 +1779,20 @@ class PathTrackingControllerNode {
         longitudinal =
             pid_.update(speed_plan.target_speed_mps, speed_mps, dt_sec);
       }
+      // Independent map guard also covers PID fallback. It does not claim
+      // that physical overshoot is impossible; closed-loop validation is needed.
+      if (config_.use_map_speed_limits) {
+        const double ceiling = latest_map_speed_limit_->current_limit_mps;
+        const double activation = ceiling - (ceiling <= 60.0 / 3.6 + 1e-9 ? 0.5 / 3.6 : 0.0);
+        const double predicted = std::abs(speed_mps) + 0.35 *
+            std::max(0.0, longitudinal_mpc_result.estimated_acceleration_mps2);
+        if (std::abs(speed_mps) >= activation || predicted >= ceiling) {
+          longitudinal.accel = 0.0;
+          longitudinal.brake = std::max(longitudinal.brake, config_.pid.minimum_hard_brake_command);
+          longitudinal.state = LongitudinalState::kHardSpeedBrake;
+          longitudinal_mpc_result.hard_speed_guard_active = true;
+        }
+      }
       if (!std::isfinite(longitudinal.accel) ||
           !std::isfinite(longitudinal.brake) || longitudinal.accel < 0.0 ||
           longitudinal.brake < 0.0 ||
@@ -1824,6 +1888,9 @@ class PathTrackingControllerNode {
   message_filters::Subscriber<nav_msgs::Path> path_subscriber_;
   message_filters::Subscriber<nav_msgs::Odometry> odometry_subscriber_;
   message_filters::Synchronizer<InputSyncPolicy> input_synchronizer_;
+  message_filters::Subscriber<RouteSpeedLimit> map_speed_subscriber_;
+  std::unique_ptr<message_filters::Synchronizer<MapInputSyncPolicy>> map_input_synchronizer_;
+  RouteSpeedLimit::ConstPtr latest_map_speed_limit_;
   ros::Subscriber vehicle_status_subscriber_;
   ros::WallTimer timer_;
   nav_msgs::Path::ConstPtr latest_path_;

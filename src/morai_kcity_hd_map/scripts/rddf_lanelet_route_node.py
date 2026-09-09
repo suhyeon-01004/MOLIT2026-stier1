@@ -404,6 +404,17 @@ def build_route(
         smoothing_window_points,
     )
     stats["maximum_rddf_error_m"] = max(errors)
+    # Keep the exact source association already used by boundary correction.
+    # An unknown/contradictory attribute never grants high-speed authority.
+    high_speed_sources = set()
+    for source in sequence:
+        attributes = dict(lanelet_by_source[source].attributes)
+        if (attributes.get("contest_zone") == "high_speed"
+                and attributes.get("contest_speed_limit") == "unlimited"
+                and not attributes.get("speed_limit")):
+            high_speed_sources.add(source)
+    stats["high_speed_by_point"] = [source in high_speed_sources
+                                    for source in stats["source_by_point"]]
     return route, sequence, len(lanelet_map.laneletLayer), stats
 
 
@@ -472,15 +483,54 @@ def make_path(points, frame_id, stamp):
     return message
 
 
+def map_speed_envelope(points, high_speed, start, high_speed_target_kph):
+    """Finite test envelope on a closed route; no change to map speed regulations.
+
+    Ordinary target is 59 under the 60 km/h regulation. Brake toward that
+    target at 1.7 m/s², with 20 m for sampling/body length/response margin.
+    This is a planning assumption, not a measured braking-distance guarantee.
+    """
+    if not math.isfinite(high_speed_target_kph) or not 60 <= high_speed_target_kph <= 100:
+        raise ValueError("high_speed_target_kph must be in [60, 100]")
+    if len(points) != len(high_speed) or len(points) < 3:
+        raise ValueError("speed profile must match the closed route")
+    # Delay raising the limit until the rear of the car has entered the track.
+    high = all(high_speed[(start - offset) % len(points)] for offset in range(5))
+    ceiling = high_speed_target_kph / 3.6 if high else 60.0 / 3.6
+    target = high_speed_target_kph / 3.6 if high else 59.0 / 3.6
+    traversed = 0.0
+    for offset in range(1, len(points)):
+        previous = (start + offset - 1) % len(points)
+        index = (start + offset) % len(points)
+        traversed += math.hypot(points[index][0] - points[previous][0],
+                                points[index][1] - points[previous][1])
+        if traversed > 200.0:
+            break
+        if not high_speed[index]:
+            target = min(target, math.sqrt((59.0 / 3.6) ** 2
+                         + 2.0 * 1.7 * max(0.0, traversed - 20.0)))
+            # Front body reaches the next zone before the rear-axle pose does.
+            if traversed <= 5.0:
+                ceiling = min(ceiling, 60.0 / 3.6)
+    return high, ceiling, min(target, ceiling)
+
+
 class RoutePublisher:
-    def __init__(self, route, sequence):
+    def __init__(self, route, sequence, stats):
         import rospy
         from geometry_msgs.msg import PoseStamped
         from nav_msgs.msg import Path as PathMessage
+        from morai_path_tracking.msg import RouteSpeedLimit
 
         self.rospy = rospy
         self.points = route[:-1] if same_point(route[0], route[-1]) else route
         self.sequence = sequence
+        self.sources = stats["source_by_point"][:len(self.points)]
+        self.high_speed = stats["high_speed_by_point"][:len(self.points)]
+        self.high_speed_target = float(rospy.get_param("~high_speed_target_kph", 60.0))
+        map_speed_envelope(self.points, self.high_speed, 0, self.high_speed_target)
+        self.speed_message_type = RouteSpeedLimit
+        self.speed_publisher = rospy.Publisher("/route_speed_limit", RouteSpeedLimit, queue_size=1)
         self.frame_id = rospy.get_param("~frame_id", "map")
         self.local_length = float(rospy.get_param("~local_path_length_m", 100.0))
         self.backward_points = int(rospy.get_param("~search_backward_points", 80))
@@ -555,6 +605,12 @@ class RoutePublisher:
         self.previous_index = self.nearest(position.x, position.y)
         points = self.local_points(self.previous_index)
         stamp = pose.header.stamp or self.rospy.Time.now()
+        speed = self.speed_message_type()
+        speed.header.frame_id, speed.header.stamp = self.frame_id, stamp
+        speed.source_link_id = self.sources[self.previous_index]
+        speed.high_speed_zone, speed.current_limit_mps, speed.target_limit_mps = map_speed_envelope(
+            self.points, self.high_speed, self.previous_index, self.high_speed_target)
+        self.speed_publisher.publish(speed)
         self.local_publisher.publish(make_path(points, self.frame_id, stamp))
 
 
@@ -576,7 +632,7 @@ def ros_main():
         float(rospy.get_param("~maximum_centerline_correction_m", 0.75)),
         int(rospy.get_param("~centerline_smoothing_window_points", 31)),
     )
-    RoutePublisher(route, sequence)
+    RoutePublisher(route, sequence, stats)
     rospy.loginfo(
         "RDDF-selected boundary-centered Lanelet2 route: %d points, %d/%d Lanelets, "
         "%.1f m, max RDDF error %.9f m, correction max/p99 %.3f/%.3f m, "

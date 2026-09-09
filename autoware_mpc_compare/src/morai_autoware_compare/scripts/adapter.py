@@ -41,6 +41,11 @@ class Adapter:
         self.route_xy = None
         self.angle = 0.
         self.last_tick = time.monotonic()
+        self.maximum_input_speed = float(rospy.get_param('~maximum_input_speed_kph', 61.2)) / 3.6
+        if not math.isfinite(self.maximum_input_speed) or not 60. / 3.6 <= self.maximum_input_speed <= 102. / 3.6:
+            raise ValueError('maximum_input_speed_kph must be in [60, 102]')
+        if self.maximum_input_speed > 17. and not rospy.get_param('/path_tracking_controller_node/use_map_speed_limits', False):
+            raise ValueError('Above-60 input range requires map speed limits')
         model = rospy.get_param('/autoware_mpc/vehicle_model_type')
         self.steer_gain = rospy.get_param('/autoware_mpc/vehicle_model_steer_gain', 1.0)
         if not math.isfinite(self.steer_gain) or not .5 <= self.steer_gain <= 1.5:
@@ -96,7 +101,7 @@ class Adapter:
                 pos, q, twist = odom.pose.pose.position, odom.pose.pose.orientation, odom.twist.twist
                 if not all(math.isfinite(v) for v in (pos.x, pos.y, q.x, q.y, q.z, q.w, twist.linear.x, twist.angular.z)):
                     raise ValueError('NONFINITE_INPUT')
-                if abs(sum(v*v for v in (q.x, q.y, q.z, q.w)) - 1) > .01 or abs(twist.linear.x) > 17.:
+                if abs(sum(v*v for v in (q.x, q.y, q.z, q.w)) - 1) > .01 or abs(twist.linear.x) > self.maximum_input_speed:
                     raise ValueError('INPUT_RANGE')
                 p0 = path.poses[0].pose.position
                 nearest = int(np.argmin(np.sum((self.route_xy - [p0.x, p0.y]) ** 2, axis=1)))

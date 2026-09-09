@@ -4,6 +4,8 @@ localization_topic: /localization/pose
 global_path_topic: /global_path
 local_path_topic: /local_path
 local_path_length_m: 100.0
+# Explicit baseline prevents a previous opt-in run leaving a 100 km/h parameter.
+high_speed_target_kph: 60.0
 search_backward_points: 80
 search_forward_points: 500
 reacquire_distance_m: 10.0

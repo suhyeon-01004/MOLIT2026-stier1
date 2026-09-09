@@ -27,11 +27,19 @@ if sys.argv[1:]==['--check-parking']:
     sys.exit(0)
 
 ROOT = pathlib.Path(__file__).resolve().parent
+high_speed_kph = float(os.environ['TRIAL_HIGH_SPEED_KPH']) if os.environ.get('TRIAL_HIGH_SPEED_KPH') else None
+if high_speed_kph is not None:
+    assert math.isfinite(high_speed_kph) and 60. <= high_speed_kph <= 100., 'High-speed target must be 60..100 km/h'
+    assert os.environ.get('TRIAL_AUTOWARE_CONFIG'), 'Map-speed trial requires the Autoware comparison'
+    assert not os.environ.get('TRIAL_EXCITATION'), 'No excitation during a high-speed trial'
+maximum_trial_speed_mps = (high_speed_kph + 2.) / 3.6 if high_speed_kph is not None else 17.
 label, config = sys.argv[1:3]
 out = ROOT / label
 out.mkdir(exist_ok=False)
 processes = []
 metadata = {'label': label, 'config': config, 'reset_sequence': 'Manual -> I -> P'}
+metadata['high_speed_target_kph'] = high_speed_kph
+metadata['maximum_trial_speed_mps'] = maximum_trial_speed_mps
 workspace = pathlib.Path('/home/stier/molit-2026-stier1-suhyeon')
 snapshot_files = [
     'src/ioniq5_description/config/vehicle/vehicle_specs.yaml',
@@ -49,6 +57,9 @@ snapshot_files = [
     'autoware_mpc_compare/install/lib/morai_autoware_compare/steering_prediction.py',
     'install/lib/morai_path_tracking/path_tracking_controller_node',
     'install/lib/libmorai_longitudinal_mpc.so',
+    'install/lib/libmorai_curvature_speed_planner.so',
+    'install/lib/morai_kcity_hd_map/rddf_lanelet_route_node.py',
+    'src/morai_kcity_hd_map/map/lanelet2_map.osm',
 ]
 metadata['candidate_code_sha256'] = {
     name: hashlib.sha256((workspace/name).read_bytes()).hexdigest()
@@ -108,6 +119,10 @@ def key(key_name):
 
 stack = sender = recorder = None
 try:
+    if high_speed_kph is not None:
+        running = subprocess.check_output(['rosnode', 'list'], text=True).splitlines()
+        conflicting = {'/control_sender_node', '/path_tracking_controller_node', '/autoware_adapter', '/autoware_mpc'} & set(running)
+        assert not conflicting, 'Stop the existing controller/sender before this trial: ' + repr(conflicting)
     for candidate_config in (config, os.environ.get('TRIAL_AUTOWARE_CONFIG'), os.environ.get('TRIAL_LOCALIZATION_CONFIG')):
         if candidate_config:
             parsed = yaml.safe_load(pathlib.Path(candidate_config).read_text())
@@ -123,12 +138,13 @@ try:
     metadata['reset_status'] = reset[-1]
     print('RESET VERIFIED ' + json.dumps(reset[-1]), flush=True)
     # Trials start from configuration files, never stale preceding ROS params.
-    for namespace in ('/path_tracking_controller_node', '/autoware_mpc'):
+    for namespace in ('/path_tracking_controller_node', '/autoware_mpc', '/autoware_adapter', '/rddf_lanelet_route'):
         subprocess.run(['rosparam', 'delete', namespace], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     import rospy
     from nav_msgs.msg import Odometry
     from morai_path_tracking.msg import ControllerStatus
+    from morai_path_tracking.msg import RouteSpeedLimit
     from morai_udp_bridge.msg import CompetitionVehicleStatus
     from morai_udp_bridge.msg import ActuatorCommand
     rospy.init_node('offset_free_trial_monitor', anonymous=True, disable_signals=True)
@@ -139,12 +155,18 @@ try:
                      for name, topic, kind in [('odom', '/localization/odometry', Odometry),
                                               ('status', '/control/controller_status', ControllerStatus),
                                               ('vehicle', '/vehicle/competition_status', CompetitionVehicleStatus)]]
+    if high_speed_kph is not None:
+        subscriptions.append(rospy.Subscriber('/route_speed_limit', RouteSpeedLimit,
+                             lambda msg: receive('map_speed', msg), queue_size=1))
     stack_args = ['roslaunch', 'morai_kcity_hd_map', 'kcity_autonomous.launch',
                   'send_control:=false', 'rviz:=' + str(metadata['rviz_enabled']).lower(), 'controller_config:=' + config]
     if os.environ.get('TRIAL_AUTOWARE_CONFIG'):
         stack_args[1:3] = ['morai_autoware_compare', 'compare.launch']
         metadata['autoware_config'] = os.environ['TRIAL_AUTOWARE_CONFIG']
         stack_args.append('autoware_config:=' + metadata['autoware_config'])
+        if high_speed_kph is not None:
+            stack_args[2] = 'map_speed.launch'
+            stack_args.append('high_speed_target_kph:=' + str(high_speed_kph))
         metadata['use_map_guard'] = os.environ.get('TRIAL_MAP_GUARD') == '1'
         if metadata['use_map_guard']:
             stack_args.append('use_map_guard:=true')
@@ -170,6 +192,13 @@ try:
     metadata['resolved_position_filter_time_constant_sec'] = rospy.get_param('/localization_fusion/position_filter_time_constant_sec', 0.0)
     subprocess.run(['rosparam','dump',str(out/'resolved_controller.yaml'),'/path_tracking_controller_node'],check=True)
     subprocess.run(['rosparam','dump',str(out/'resolved_localization.yaml'),'/localization_fusion'],check=True)
+    if high_speed_kph is not None:
+        assert rospy.get_param('/path_tracking_controller_node/use_map_speed_limits') is True
+        assert abs(rospy.get_param('/path_tracking_controller_node/curve_approach_deceleration_mps2') - 1.7) < 1e-9
+        assert abs(rospy.get_param('/path_tracking_controller_node/maximum_speed_kph') - high_speed_kph) < 1e-9
+        assert abs(rospy.get_param('/rddf_lanelet_route/high_speed_target_kph') - high_speed_kph) < 1e-9
+        subprocess.run(['rosparam','dump',str(out/'resolved_route.yaml'),'/rddf_lanelet_route'],check=True)
+        subprocess.run(['rosparam','dump',str(out/'resolved_adapter.yaml'),'/autoware_adapter'],check=True)
     if metadata.get('autoware_config'):
         subprocess.run(['rosparam','dump',str(out/'resolved_autoware.yaml'),'/autoware_mpc'],check=True)
         assert rospy.get_param('/autoware_mpc/vehicle_model_type') in ('kinematics_no_delay', 'kinematics')
@@ -188,6 +217,7 @@ try:
               '/diagnostics', '/sensors/gps/fix', '/sensors/imu/data', '/control/mpc_compensated_path',
               '/localization/gps/local_point', '/localization/imu/data', '/validation/actuator_command']
     topics += ['/comparison/custom_status', '/comparison/custom_command', '/comparison/ctrl_raw', '/comparison/sent_control',
+               '/route_speed_limit',
                '/comparison/map_clearance',
                '/comparison/waypoints', '/comparison/vehicle_status_estimated', '/comparison/pose',
                '/autoware_mpc/debug/debug_values', '/autoware_mpc/debug/mpc_calc_time']
@@ -227,7 +257,12 @@ try:
         point = latest['odom'][1].pose.pose.position
         distance += math.hypot(point.x - previous[0], point.y - previous[1])
         previous = [point.x, point.y]
-        if now - started > 4 and (not status.active or abs(status.cross_track_error_m) > .8 or abs(vehicle.velocity_x_mps) > 17):
+        if high_speed_kph is not None:
+            if 'map_speed' not in latest or now - latest['map_speed'][0] > .3:
+                raise RuntimeError('Stale map-speed monitor input')
+            if abs(vehicle.velocity_x_mps) > latest['map_speed'][1].current_limit_mps + 2. / 3.6:
+                raise RuntimeError('Map-speed overshoot >2 km/h (abort margin, not a permitted speed)')
+        if now - started > 4 and (not status.active or abs(status.cross_track_error_m) > .8 or abs(vehicle.velocity_x_mps) > maximum_trial_speed_mps):
             raise RuntimeError('Trial guard: active={} cte={} speed={}'.format(status.active, status.cross_track_error_m, vehicle.velocity_x_mps))
         if now >= next_print:
             print('DRIVE {:6.1f}s {:7.1f}m v={:4.1f}kph cte={:+.3f} yaw={:+.2f}deg accel={:.3f} brake={:.3f}'.format(

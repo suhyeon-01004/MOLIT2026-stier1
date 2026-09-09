@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <limits>
 
 #include "morai_path_tracking/controllers/lateral/pure_pursuit.hpp"
 
@@ -37,7 +38,9 @@ class CurvatureSpeedPlanner {
   explicit CurvatureSpeedPlanner(const CurvatureSpeedPlannerConfig& config);
 
   CurvatureSpeedPlan update(const std::vector<Point2d>& path_in_vehicle_frame,
-                            double dt_sec);
+                            double dt_sec,
+                            double external_speed_limit_mps = std::numeric_limits<double>::infinity(),
+                            double extra_preview_distance_m = 0.0);
   void reset() noexcept;
 
  private:

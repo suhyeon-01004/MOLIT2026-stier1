@@ -1,0 +1,25 @@
+<launch>
+  <!-- Simulator experiment only: 100 km/h is NOT a validated operating speed. -->
+  <arg name="high_speed_target_kph" default="100.0"/>
+  <arg name="send_control" default="false"/>
+  <arg name="rviz" default="true"/>
+  <arg name="controller_config"/>
+  <arg name="autoware_config"/>
+  <arg name="localization_config"/>
+  <include file="$(find morai_autoware_compare)/launch/compare.launch">
+    <arg name="send_control" value="$(arg send_control)"/>
+    <arg name="rviz" value="$(arg rviz)"/>
+    <arg name="controller_config" value="$(arg controller_config)"/>
+    <arg name="autoware_config" value="$(arg autoware_config)"/>
+    <arg name="localization_config" value="$(arg localization_config)"/>
+  </include>
+  <param name="/path_tracking_controller_node/use_map_speed_limits" value="true"/>
+  <param name="/path_tracking_controller_node/target_speed_kph" value="$(arg high_speed_target_kph)"/>
+  <param name="/path_tracking_controller_node/mpc_test_speed_limit_kph" value="$(arg high_speed_target_kph)"/>
+  <param name="/path_tracking_controller_node/maximum_speed_kph" value="$(arg high_speed_target_kph)"/>
+  <param name="/path_tracking_controller_node/hard_brake_activation_speed_kph" value="$(arg high_speed_target_kph)"/>
+  <param name="/rddf_lanelet_route/high_speed_target_kph" value="$(arg high_speed_target_kph)"/>
+  <param name="/rddf_lanelet_route/local_path_length_m" value="300.0"/>
+  <!-- Input abort threshold is distinct from commanded/operational speed cap. -->
+  <param name="/autoware_adapter/maximum_input_speed_kph" value="102.0"/>
+</launch>

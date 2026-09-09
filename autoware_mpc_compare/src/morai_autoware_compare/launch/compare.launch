@@ -10,6 +10,7 @@
  <rosparam command="load" file="$(arg controller_config)"/>
  <node pkg="morai_path_tracking" type="path_tracking_controller_node" name="path_tracking_controller_node" required="true" output="screen">
   <param name="longitudinal_only" value="true"/>
+  <param name="use_map_speed_limits" value="false"/>
   <param name="command_topic" value="/comparison/custom_command"/>
   <param name="controller_status_topic" value="/comparison/custom_status"/>
   <remap from="/control/actuator_command" to="/comparison/custom_command"/>
@@ -24,6 +25,8 @@
   <remap from="estimate_twist" to="/comparison/twist"/>
   <remap from="sent_control" to="/comparison/sent_control"/>
  </node>
- <node pkg="morai_autoware_compare" type="adapter.py" name="autoware_adapter" required="true" output="screen"/>
+ <node pkg="morai_autoware_compare" type="adapter.py" name="autoware_adapter" required="true" output="screen">
+  <param name="maximum_input_speed_kph" value="61.2"/>
+ </node>
  <include if="$(arg send_control)" file="$(find morai_udp_bridge)/launch/control/control_sender.launch"/>
 </launch>
