@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="use_udp_bridge" default="true"/>
+  <arg name="rviz" default="true"/>
+  <arg name="bridge_config"
+       default="$(find morai_udp_bridge)/config/localization/molit_2026_localization.yaml"/>
+  <arg name="status_config"
+       default="$(find morai_udp_bridge)/config/status/molit_2026_vehicle_status.yaml"/>
+  <arg name="localization_config"
+       default="$(find morai_localization)/config/maps/molit_2026_kcity.yaml"/>
+  <arg name="vehicle_config"
+       default="$(find ioniq5_description)/config/vehicle/vehicle_specs.yaml"/>
+  <arg name="sensor_config"
+       default="$(find ioniq5_description)/config/sensors/molit_2026_sensor_mounts.yaml"/>
+  <arg name="rviz_config"
+       default="$(find morai_kcity_hd_map)/config/kcity_hd_map.rviz"/>
+  <arg name="rddf_file"
+       default="$(find morai_kcity_hd_map)/map/2026_molit_comp_global_path.txt"/>
+  <arg name="route_config"
+       default="$(find morai_kcity_hd_map)/config/rddf_lanelet_route.yaml"/>
+
+  <include file="$(find ioniq5_description)/launch/description/description.launch">
+    <arg name="vehicle_config" value="$(arg vehicle_config)"/>
+    <arg name="sensor_config" value="$(arg sensor_config)"/>
+  </include>
+
+  <group if="$(arg use_udp_bridge)">
+    <node pkg="morai_udp_bridge"
+          type="morai_udp_bridge_node"
+          name="morai_udp_bridge"
+          output="screen"
+          required="true">
+      <rosparam command="load" file="$(arg bridge_config)"/>
+      <rosparam command="load" file="$(arg sensor_config)" ns="sensor_setup"/>
+    </node>
+    <include file="$(find morai_udp_bridge)/launch/status/competition_vehicle_status_receiver.launch">
+      <arg name="config" value="$(arg status_config)"/>
+    </include>
+  </group>
+
+  <include file="$(find morai_localization)/launch/stack/localization.launch">
+    <arg name="config" value="$(arg localization_config)"/>
+  </include>
+
+  <node pkg="morai_kcity_hd_map"
+        type="rddf_lanelet_route_node.py"
+        name="rddf_lanelet_route"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg route_config)"/>
+    <param name="rddf_file" value="$(arg rddf_file)"/>
+    <param name="lanelet_map"
+           value="$(find morai_kcity_hd_map)/map/lanelet2_map.osm"/>
+    <param name="raw_mgeo"
+           value="$(find morai_kcity_hd_map)/raw_mgeo"/>
+  </node>
+
+  <node pkg="morai_kcity_hd_map"
+        type="rviz_visualizer.py"
+        name="kcity_hd_map_visualizer"
+        output="screen"
+        required="true"
+        args="--input $(find morai_kcity_hd_map)/raw_mgeo"/>
+
+  <node if="$(arg rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="kcity_hd_map_rviz"
+        args="-d $(arg rviz_config)"
+        output="screen">
+    <env name="DISABLE_ROS1_EOL_WARNINGS" value="1"/>
+  </node>
+</launch>

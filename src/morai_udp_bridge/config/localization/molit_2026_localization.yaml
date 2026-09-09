@@ -1,0 +1,24 @@
+# Lightweight bridge profile for GPS + IMU localization tests.
+# Ports must match the loaded 0725demo.json MORAI sensor preset.
+bind_ip: 0.0.0.0
+allowed_source_ip: ""
+# Match the current kernel rmem_max. No packet drops were observed at this
+# capacity for the lightweight GPS/IMU streams.
+receive_buffer_bytes: 212992
+diagnostics_period: 1.0
+
+gps:
+  enabled: true
+  port: 9301
+  topic: /sensors/gps/fix
+  stale_timeout: 1.0
+  max_hz: 30.0
+
+imu:
+  enabled: true
+  port: 9303
+  topic: /sensors/imu/data
+  packet_layout: auto
+  use_sensor_time: false
+  stale_timeout: 0.5
+  max_hz: 50.0

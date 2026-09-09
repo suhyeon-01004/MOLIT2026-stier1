@@ -1,0 +1,11 @@
+bind_ip: 0.0.0.0
+allowed_source_ip: ""
+receive_buffer_bytes: 1048576
+diagnostics_period: 1.0
+
+gps:
+  enabled: true
+  port: 9301
+  topic: /sensors/gps/fix
+  stale_timeout: 1.0
+  max_hz: 30.0

@@ -1,0 +1,52 @@
+# MORAI/ROS vehicle-local axes: x forward, y left, z up.
+reference_frame: base_link
+angles: intrinsic_fixed_axis_rpy_degrees
+
+cameras:
+  front:
+    transform_verified: true
+    frame_id: camera_front_link
+    optical_frame_id: camera_front_optical_frame
+    xyz_m: [1.9, 0.0, 1.2]
+    rpy_deg: [0.0, 2.0, 0.0]
+    width: 1280
+    height: 720
+    horizontal_fov_deg: 90.0
+  left:
+    transform_verified: true
+    frame_id: camera_left_link
+    optical_frame_id: camera_left_optical_frame
+    xyz_m: [1.15, 0.65, 1.2]
+    rpy_deg: [0.0, 10.0, 70.0]
+    width: 640
+    height: 480
+    horizontal_fov_deg: 130.0
+  right:
+    transform_verified: true
+    frame_id: camera_right_link
+    optical_frame_id: camera_right_optical_frame
+    xyz_m: [1.15, -0.65, 1.2]
+    # 290 degrees is equivalent to -70 degrees and is kept as written in the rules.
+    rpy_deg: [0.0, 10.0, 290.0]
+    width: 640
+    height: 480
+    horizontal_fov_deg: 130.0
+
+# MORAI IONIQ5 차량 원점은 rear axle 중심이므로 GPS를 원점 수직 위 외장에 둔다.
+gps:
+  transform_verified: true
+  frame_id: gps_link
+  xyz_m: [0.0, 0.0, 1.2]
+  rpy_deg: [0.0, 0.0, 0.0]
+# IMU는 차축 사이 중앙, 차량 중심선의 낮고 단단한 실내 위치를 기준으로 둔다.
+imu:
+  transform_verified: true
+  frame_id: imu_link
+  xyz_m: [1.5, 0.0, 0.5]
+  rpy_deg: [0.0, 0.0, 0.0]
+lidar:
+  # Kept identical to the current 0725demo MORAI sensor preset.
+  transform_verified: true
+  frame_id: lidar_link
+  xyz_m: [1.5, 0.0, 1.25]
+  rpy_deg: [0.0, 0.0, 0.0]

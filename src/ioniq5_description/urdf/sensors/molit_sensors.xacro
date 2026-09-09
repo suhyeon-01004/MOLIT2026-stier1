@@ -1,0 +1,102 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="camera_mount" params="name config parent">
+    <xacro:property name="xyz" value="${config['xyz_m']}"/>
+    <xacro:property name="rpy" value="${config['rpy_deg']}"/>
+    <link name="${config['frame_id']}">
+      <visual>
+        <geometry><box size="0.10 0.06 0.06"/></geometry>
+        <material name="camera_color"><color rgba="0.1 0.1 0.1 1.0"/></material>
+      </visual>
+    </link>
+    <joint name="${parent}_to_${config['frame_id']}" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${config['frame_id']}"/>
+      <origin
+        xyz="${xyz[0]} ${xyz[1]} ${xyz[2]}"
+        rpy="${rpy[0] * pi / 180.0} ${rpy[1] * pi / 180.0} ${rpy[2] * pi / 180.0}"/>
+    </joint>
+
+    <link name="${config['optical_frame_id']}"/>
+    <joint name="${config['frame_id']}_to_optical" type="fixed">
+      <parent link="${config['frame_id']}"/>
+      <child link="${config['optical_frame_id']}"/>
+      <!-- camera_link: x forward/y left/z up; optical: z forward/x right/y down -->
+      <origin xyz="0 0 0" rpy="${-pi / 2.0} 0 ${-pi / 2.0}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="generic_sensor_mount" params="config parent">
+    <xacro:property name="xyz" value="${config['xyz_m']}"/>
+    <xacro:property name="rpy" value="${config['rpy_deg']}"/>
+    <link name="${config['frame_id']}"/>
+    <joint name="${parent}_to_${config['frame_id']}" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${config['frame_id']}"/>
+      <origin
+        xyz="${xyz[0]} ${xyz[1]} ${xyz[2]}"
+        rpy="${rpy[0] * pi / 180.0} ${rpy[1] * pi / 180.0} ${rpy[2] * pi / 180.0}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="gps_sensor_mount" params="config parent">
+    <xacro:property name="xyz" value="${config['xyz_m']}"/>
+    <xacro:property name="rpy" value="${config['rpy_deg']}"/>
+    <link name="${config['frame_id']}">
+      <visual>
+        <origin xyz="0 0 0.02" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.09" length="0.04"/></geometry>
+        <material name="gps_antenna_color"><color rgba="0.95 0.65 0.05 1.0"/></material>
+      </visual>
+    </link>
+    <joint name="${parent}_to_${config['frame_id']}" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${config['frame_id']}"/>
+      <origin
+        xyz="${xyz[0]} ${xyz[1]} ${xyz[2]}"
+        rpy="${rpy[0] * pi / 180.0} ${rpy[1] * pi / 180.0} ${rpy[2] * pi / 180.0}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="lidar_sensor_mount" params="config parent">
+    <xacro:property name="xyz" value="${config['xyz_m']}"/>
+    <xacro:property name="rpy" value="${config['rpy_deg']}"/>
+    <link name="${config['frame_id']}">
+      <!-- VLP 계열 센서의 위치와 방향을 확인하기 위한 RViz용 단순 형상 -->
+      <visual name="lidar_body">
+        <origin xyz="0 0 0.035" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.052" length="0.070"/></geometry>
+        <material name="lidar_body_color"><color rgba="0.08 0.22 0.35 1.0"/></material>
+      </visual>
+      <visual name="lidar_window">
+        <origin xyz="0 0 0.075" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.050" length="0.025"/></geometry>
+        <material name="lidar_window_color"><color rgba="0.10 0.75 0.95 0.95"/></material>
+      </visual>
+    </link>
+    <joint name="${parent}_to_${config['frame_id']}" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${config['frame_id']}"/>
+      <origin
+        xyz="${xyz[0]} ${xyz[1]} ${xyz[2]}"
+        rpy="${rpy[0] * pi / 180.0} ${rpy[1] * pi / 180.0} ${rpy[2] * pi / 180.0}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="molit_sensor_mounts" params="mounts">
+    <xacro:property name="parent" value="${mounts['reference_frame']}"/>
+    <xacro:camera_mount name="front" config="${mounts['cameras']['front']}" parent="${parent}"/>
+    <xacro:camera_mount name="left" config="${mounts['cameras']['left']}" parent="${parent}"/>
+    <xacro:camera_mount name="right" config="${mounts['cameras']['right']}" parent="${parent}"/>
+
+    <xacro:if value="${mounts['gps']['transform_verified']}">
+      <xacro:gps_sensor_mount config="${mounts['gps']}" parent="${parent}"/>
+    </xacro:if>
+    <xacro:if value="${mounts['imu']['transform_verified']}">
+      <xacro:generic_sensor_mount config="${mounts['imu']}" parent="${parent}"/>
+    </xacro:if>
+    <xacro:if value="${mounts['lidar']['transform_verified']}">
+      <xacro:lidar_sensor_mount config="${mounts['lidar']}" parent="${parent}"/>
+    </xacro:if>
+  </xacro:macro>
+</robot>

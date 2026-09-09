@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<robot name="ioniq5_molit" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="vehicle_config" default="$(find ioniq5_description)/config/vehicle/vehicle_specs.yaml"/>
+  <xacro:arg name="sensor_config" default="$(find ioniq5_description)/config/sensors/molit_2026_sensor_mounts.yaml"/>
+
+  <xacro:include filename="$(find ioniq5_description)/urdf/vehicle/ioniq5_base.xacro"/>
+  <xacro:include filename="$(find ioniq5_description)/urdf/sensors/molit_sensors.xacro"/>
+
+  <xacro:property name="vehicle_specs" value="${xacro.load_yaml('$(arg vehicle_config)')}"/>
+  <xacro:property name="sensor_mounts" value="${xacro.load_yaml('$(arg sensor_config)')}"/>
+
+  <xacro:ioniq5_base specs="${vehicle_specs}"/>
+  <xacro:molit_sensor_mounts mounts="${sensor_mounts}"/>
+</robot>

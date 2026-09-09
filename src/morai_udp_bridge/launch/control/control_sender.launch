@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="config"
+       default="$(find morai_udp_bridge)/config/control/molit_2026_control.yaml"/>
+
+  <rosparam command="load" file="$(arg config)"/>
+
+  <node pkg="morai_udp_bridge"
+        type="control_sender_node"
+        name="control_sender_node"
+        output="screen"
+        required="true"/>
+</launch>

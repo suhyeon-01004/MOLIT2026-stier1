@@ -1,0 +1,29 @@
+<launch>
+ <arg name="send_control" default="false"/>
+ <arg name="rviz" default="false"/>
+ <arg name="controller_config" default="$(find morai_path_tracking)/config/controllers/molit_2026_path_tracking.yaml"/>
+ <arg name="localization_config" default="$(find morai_localization)/config/maps/molit_2026_kcity.yaml"/>
+ <arg name="autoware_config" default="$(find morai_autoware_compare)/config/mpc.yaml"/>
+ <include file="$(find morai_kcity_hd_map)/launch/kcity_localization_visualization.launch">
+  <arg name="rviz" value="$(arg rviz)"/><arg name="localization_config" value="$(arg localization_config)"/>
+ </include>
+ <rosparam command="load" file="$(arg controller_config)"/>
+ <node pkg="morai_path_tracking" type="path_tracking_controller_node" name="path_tracking_controller_node" required="true" output="screen">
+  <param name="longitudinal_only" value="true"/>
+  <param name="command_topic" value="/comparison/custom_command"/>
+  <param name="controller_status_topic" value="/comparison/custom_status"/>
+  <remap from="/control/actuator_command" to="/comparison/custom_command"/>
+  <remap from="/control/controller_status" to="/comparison/custom_status"/>
+ </node>
+ <node pkg="mpc_follower" type="mpc_follower" name="autoware_mpc" required="true" output="screen">
+  <rosparam command="load" file="$(arg autoware_config)"/>
+  <param name="in_waypoints_name" value="/comparison/waypoints"/>
+  <param name="in_selfpose_name" value="/comparison/pose"/>
+  <param name="in_vehicle_status_name" value="/comparison/vehicle_status_estimated"/>
+  <param name="out_vehicle_cmd_name" value="/comparison/ctrl_raw"/>
+  <remap from="estimate_twist" to="/comparison/twist"/>
+  <remap from="sent_control" to="/comparison/sent_control"/>
+ </node>
+ <node pkg="morai_autoware_compare" type="adapter.py" name="autoware_adapter" required="true" output="screen"/>
+ <include if="$(arg send_control)" file="$(find morai_udp_bridge)/launch/control/control_sender.launch"/>
+</launch>

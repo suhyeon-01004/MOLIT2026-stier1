@@ -1,0 +1,9 @@
+<library path="lib/libmorai_kcity_status_panel">
+  <class name="morai_kcity_hd_map/LocalizationStatusPanel"
+         type="morai_kcity_hd_map::LocalizationStatusPanel"
+         base_class_type="rviz::Panel">
+    <description>
+      Scrollable localization source, freshness, and cross-check log.
+    </description>
+  </class>
+</library>

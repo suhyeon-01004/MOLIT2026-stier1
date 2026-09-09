@@ -1,0 +1,26 @@
+<launch>
+  <rosparam command="load"
+            file="$(find morai_path_tracking)/config/controllers/molit_2026_path_tracking.yaml"/>
+
+  <node pkg="morai_path_tracking"
+        type="path_tracking_controller_node"
+        name="path_tracking_controller_node"
+        output="screen">
+    <param name="local_path_topic" value="/mpc_test/local_path"/>
+    <param name="odometry_topic" value="/mpc_test/odometry"/>
+    <param name="vehicle_status_topic" value="/mpc_test/competition_status"/>
+    <param name="command_topic" value="/mpc_test/actuator_command"/>
+    <param name="controller_status_topic" value="/mpc_test/controller_status"/>
+    <param name="lookahead_point_topic" value="/mpc_test/lookahead_point"/>
+    <param name="stanley_projection_point_topic"
+           value="/mpc_test/stanley_projection_point"/>
+    <param name="mpc_projection_point_topic"
+           value="/mpc_test/mpc_projection_point"/>
+    <param name="lateral_controller" value="mpc"/>
+  </node>
+
+  <test test-name="mpc_controller"
+        pkg="morai_path_tracking"
+        type="test_mpc_controller_node.py"
+        time-limit="25.0"/>
+</launch>

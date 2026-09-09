@@ -1,0 +1,6 @@
+<package format="2"><name>amathutils_lib</name><version>1.14.0</version>
+ <description>Official Autoware math library with standalone catkin dependencies.</description>
+ <maintainer email="autoware@autoware.org">Autoware</maintainer><license>Apache 2</license>
+ <buildtool_depend>catkin</buildtool_depend><depend>roscpp</depend><depend>geometry_msgs</depend>
+ <depend>tf</depend><depend>tf2</depend><depend>tf2_geometry_msgs</depend><depend>eigen</depend>
+</package>

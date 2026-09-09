@@ -1,0 +1,19 @@
+control_sender_node:
+  command_topic: /control/actuator_command
+  destination_ip: 127.0.0.1
+  destination_port: 9093
+  send_rate_hz: 50.0
+  command_timeout_sec: 0.25
+  safe_brake_command: 0.50
+  maximum_steering_angle_deg: 40.0
+  steering_sign: 1.0
+  drive_gear: 4
+
+  # 대회 서버가 기어를 관리하므로 기본 비활성. 향후 미션에서만 활성화.
+  gear_command_enabled: false
+  gear_command_topic: /control/gear_command
+  vehicle_status_topic: /vehicle/competition_status
+  gear_change_maximum_abs_speed_mps: 0.10
+  gear_change_status_timeout_sec: 0.25
+  gear_change_minimum_brake_command: 0.50
+  gear_change_maximum_accel_command: 0.05

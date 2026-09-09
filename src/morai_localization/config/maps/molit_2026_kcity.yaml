@@ -1,0 +1,60 @@
+# Scenario-dependent localization values verified against the competition
+# global_info.json for R-KR_PG_K-City_2025.
+config_verified: true
+map_id: R-KR_PG_K-City_2025
+crs: EPSG:32652
+input_topic: /sensors/gps/fix
+output_topic: /localization/gps/local_point
+frame_id: map
+utm_zone: 52
+utm_northern: true
+east_offset: 302595.0
+north_offset: 4124145.0
+
+# IMU adapter: raw MORAI IMU validation and quaternion normalization.
+imu_input_topic: /sensors/imu/data
+imu_output_topic: /localization/imu/data
+imu_frame_id: imu_link
+minimum_quaternion_norm: 1.0e-6
+
+# GPS position + freshness-selected yaw. IMU is primary; Competition Status
+# heading is a fallback when IMU delivery is late. Competition vel_x is the
+# odometry speed; differentiated GPS remains a cross-check and fallback.
+gps_local_topic: /localization/gps/local_point
+competition_status_topic: /vehicle/competition_status
+pose_topic: /localization/pose
+odometry_topic: /localization/odometry
+status_text_topic: /localization/status_text
+base_frame_id: base_link
+# base_link already has base_footprint as its URDF parent. Publishing
+# map->base_link would give base_link two TF parents, so localization owns
+# map->base_footprint instead.
+tf_child_frame_id: base_footprint
+publish_tf: true
+
+# MORAI IMU and Competition heading use the same heading convention. Apply
+# the verified EPSG:32652 meridian-convergence correction to either source.
+yaw_sign: 1.0
+yaw_offset_deg: -1.34715
+
+# Source freshness and cross-check gates. Three fresh IMU samples are required
+# before returning from Competition fallback to avoid source chatter.
+max_gps_age_sec: 1.0
+max_primary_imu_age_sec: 0.10
+max_imu_age_sec: 0.25
+max_competition_status_age_sec: 0.25
+imu_recovery_samples: 3
+max_yaw_disagreement_deg: 2.0
+max_speed_disagreement_mps: 2.0
+status_text_period_sec: 0.5
+
+# GPS-derived velocity is not the primary speed source. It is calculated for
+# cross-checking and is used only if Competition Status becomes stale.
+minimum_velocity_dt_sec: 0.005
+maximum_velocity_dt_sec: 0.25
+maximum_velocity_mps: 50.0
+velocity_filter_time_constant_sec: 0.0
+
+# Experimental motion prediction is opt-in until repeated closed-loop acceptance.
+# Explicit zero also clears a previous trial's parameter on node restart.
+position_filter_time_constant_sec: 0.0

@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>morai_kcity_hd_map</name>
+  <version>0.1.0</version>
+  <description>K-City MGeo/Lanelet2 HD map and RViz visualization.</description>
+
+  <maintainer email="stier@todo.todo">STIER</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>pluginlib</depend>
+  <depend>roscpp</depend>
+  <depend>rospy</depend>
+  <depend>rviz</depend>
+  <depend>std_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <exec_depend>ioniq5_description</exec_depend>
+  <exec_depend>lanelet2_python</exec_depend>
+  <exec_depend>morai_localization</exec_depend>
+  <exec_depend>morai_path_tracking</exec_depend>
+  <exec_depend>morai_udp_bridge</exec_depend>
+
+  <export>
+    <rviz plugin="${prefix}/rviz_plugin_description.xml"/>
+  </export>
+</package>

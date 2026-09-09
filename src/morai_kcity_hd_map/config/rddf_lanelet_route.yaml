@@ -1,0 +1,17 @@
+# RDDF-selected Lanelet2 route and vehicle-relative local path.
+frame_id: map
+localization_topic: /localization/pose
+global_path_topic: /global_path
+local_path_topic: /local_path
+local_path_length_m: 100.0
+search_backward_points: 80
+search_forward_points: 500
+reacquire_distance_m: 10.0
+
+# RDDF selects the connected Lanelets; the published path is rebuilt from
+# their left/right bounds and uniformly sampled for the tracking controller.
+path_spacing_m: 0.5
+vehicle_width_m: 1.892
+minimum_boundary_clearance_m: 0.15
+maximum_centerline_correction_m: 0.75
+centerline_smoothing_window_points: 31

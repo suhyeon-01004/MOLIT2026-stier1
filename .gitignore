@@ -1,0 +1,23 @@
+build/
+devel/
+install/
+__pycache__/
+*.py[cod]
+*.bag
+*.bag.active
+*.orig
+backups/
+/artifacts/*
+!/artifacts/controller_validation/
+/artifacts/controller_validation/*
+!/artifacts/controller_validation/2026-09-09/
+/artifacts/controller_validation/2026-09-09/*
+!/artifacts/controller_validation/2026-09-09/team_demo/
+/artifacts/controller_validation/2026-09-09/team_demo/*
+!/artifacts/controller_validation/2026-09-09/team_demo/*.yaml
+!/artifacts/controller_validation/2026-09-09/team_demo/run_trial.py
+# Simulator-derived map data stays local until redistribution is authorized.
+/src/morai_kcity_hd_map/raw_mgeo/
+/src/morai_kcity_hd_map/preview/
+/src/morai_kcity_hd_map/map/*.osm
+/src/morai_kcity_hd_map/map/2026_molit_comp_global_path.txt

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="vehicle_config" default="$(find ioniq5_description)/config/vehicle/vehicle_specs.yaml"/>
+  <arg name="sensor_config" default="$(find ioniq5_description)/config/sensors/molit_2026_sensor_mounts.yaml"/>
+
+  <param name="robot_description"
+         command="/usr/bin/python3 $(find xacro)/xacro '$(find ioniq5_description)/urdf/vehicle/ioniq5_molit.urdf.xacro' vehicle_config:='$(arg vehicle_config)' sensor_config:='$(arg sensor_config)'"/>
+
+  <node pkg="robot_state_publisher"
+        type="robot_state_publisher"
+        name="robot_state_publisher"
+        output="screen"/>
+</launch>

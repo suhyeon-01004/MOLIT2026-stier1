@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="ioniq5_base" params="specs">
+    <xacro:property name="length" value="${specs['dimensions']['length_m']}"/>
+    <xacro:property name="width" value="${specs['dimensions']['width_m']}"/>
+    <xacro:property name="wheelbase" value="${specs['dimensions']['wheelbase_m']}"/>
+    <xacro:property name="front_overhang" value="${specs['dimensions']['front_overhang_m']}"/>
+    <xacro:property name="rear_overhang" value="${specs['dimensions']['rear_overhang_m']}"/>
+    <xacro:property name="body_height" value="${specs['visualization']['body_height_m']}"/>
+    <xacro:property name="rear_axle_height" value="${specs['visualization']['rear_axle_height_m']}"/>
+    <xacro:property name="wheel_radius" value="${specs['visualization']['wheel_radius_m']}"/>
+    <xacro:property name="wheel_width" value="${specs['visualization']['wheel_width_m']}"/>
+    <xacro:property name="body_center_x" value="${(wheelbase + front_overhang - rear_overhang) / 2.0}"/>
+    <xacro:property name="body_center_z" value="${body_height / 2.0 - rear_axle_height}"/>
+    <xacro:property name="wheel_center_y" value="${width / 2.0 - wheel_width / 2.0}"/>
+
+    <material name="ioniq5_body_color">
+      <color rgba="0.55 0.62 0.67 0.75"/>
+    </material>
+    <material name="ioniq5_wheel_color">
+      <color rgba="0.05 0.05 0.05 1.0"/>
+    </material>
+
+    <link name="base_footprint"/>
+
+    <link name="base_link">
+      <!--
+        MORAI vehicle-local origin is the rear-axle center. The debug body
+        therefore extends from -rear_overhang to wheelbase+front_overhang.
+      -->
+      <visual name="body">
+        <origin xyz="${body_center_x} 0 ${body_center_z}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${length} ${width} ${body_height}"/>
+        </geometry>
+        <material name="ioniq5_body_color"/>
+      </visual>
+      <collision name="body_collision">
+        <origin xyz="${body_center_x} 0 ${body_center_z}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${length} ${width} ${body_height}"/>
+        </geometry>
+      </collision>
+
+      <visual name="rear_left_wheel">
+        <origin xyz="0 ${wheel_center_y} 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="ioniq5_wheel_color"/>
+      </visual>
+      <visual name="rear_right_wheel">
+        <origin xyz="0 ${-wheel_center_y} 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="ioniq5_wheel_color"/>
+      </visual>
+      <visual name="front_left_wheel">
+        <origin xyz="${wheelbase} ${wheel_center_y} 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="ioniq5_wheel_color"/>
+      </visual>
+      <visual name="front_right_wheel">
+        <origin xyz="${wheelbase} ${-wheel_center_y} 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="ioniq5_wheel_color"/>
+      </visual>
+    </link>
+
+    <joint name="base_footprint_to_base_link" type="fixed">
+      <parent link="base_footprint"/>
+      <child link="base_link"/>
+      <origin xyz="0 0 ${rear_axle_height}" rpy="0 0 0"/>
+    </joint>
+
+  </xacro:macro>
+</robot>
