@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="use_udp_bridge" default="true"/>
+  <arg name="use_lidar" default="true"/>
+  <arg name="route_candidate_file" default=""/>
   <arg name="rviz" default="true"/>
   <arg name="bridge_config"
        default="$(find morai_udp_bridge)/config/localization/molit_2026_localization.yaml"/>
@@ -36,6 +38,7 @@
     <include file="$(find morai_udp_bridge)/launch/status/competition_vehicle_status_receiver.launch">
       <arg name="config" value="$(arg status_config)"/>
     </include>
+    <include if="$(arg use_lidar)" file="$(find morai_kcity_hd_map)/launch/lidar.launch"/>
   </group>
 
   <include file="$(find morai_localization)/launch/stack/localization.launch">
@@ -48,6 +51,7 @@
         output="screen"
         required="true">
     <rosparam command="load" file="$(arg route_config)"/>
+    <param name="local_route_candidate_file" value="$(arg route_candidate_file)"/>
     <param name="rddf_file" value="$(arg rddf_file)"/>
     <param name="lanelet_map"
            value="$(find morai_kcity_hd_map)/map/lanelet2_map.osm"/>

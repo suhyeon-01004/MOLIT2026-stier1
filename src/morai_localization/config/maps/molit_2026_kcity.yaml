@@ -57,4 +57,4 @@ velocity_filter_time_constant_sec: 0.0
 
 # Experimental motion prediction is opt-in until repeated closed-loop acceptance.
 # Explicit zero also clears a previous trial's parameter on node restart.
-position_filter_time_constant_sec: 0.0
+position_filter_time_constant_sec: 0.30

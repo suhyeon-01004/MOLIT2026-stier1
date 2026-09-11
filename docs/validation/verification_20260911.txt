@@ -1,0 +1,13 @@
+Date: 2026-09-11 KST
+Workspace: molit-2026-stier1-suhyeon
+Build: PASS (catkin_make install, Release, 9 packages)
+Tests: 436 total, 0 errors, 0 failures, 0 skipped
+Packages explicitly exercised: morai_path_tracking, mpc_follower
+State contract: PASS (same-generation inputs; stale/stamp/frame rejection and recovery)
+Launch parse: PASS (morai_path_tracking/autoware_mpc.launch, send_control default false)
+Simulator drive performed during cleanup: NO
+Note: build/unit/contract success is not evidence of closed-loop driving performance.
+Portfolio metrics: PASS (35 rows; adopted 18, supporting-design 13, rejected 4)
+Metric formulas: PASS (raw change and direction-normalized improvement recalculated)
+Evidence links: PASS (all CSV source paths and README relative links exist)
+Safety wording: estimated body/front-axle clearance is documented as an audit, not a guarantee

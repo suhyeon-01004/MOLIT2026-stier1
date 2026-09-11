@@ -11,6 +11,7 @@ from mgeo_common import (
     clean_points,
     end_connectors_cross,
     is_high_speed,
+    is_pedestrian_crosswalk,
     load_mgeo,
     polylines_cross,
     self_intersects,
@@ -128,9 +129,18 @@ def main():
     crosswalks = [
         marking
         for marking in data["singlecrosswalk_set"]
-        if str(marking.get("sign_type")) == "5321"
+        if is_pedestrian_crosswalk(marking)
     ]
-    assert len(crosswalks) == 60
+    assert len(crosswalks) == 77
+    assert sum(str(marking.get("sign_type")) == "533" for marking in crosswalks) == 17
+    assert not is_pedestrian_crosswalk({"sign_type": "534"})
+    assert not is_pedestrian_crosswalk({"sign_type": "544"})
+    assert not is_pedestrian_crosswalk({})
+    crosswalk_areas = [relation for relation in osm.findall("relation")
+                      if tags(relation).get("subtype") == "crosswalk"]
+    assert len(crosswalk_areas) == len(crosswalks)
+    assert {tags(area)["source_id"] for area in crosswalk_areas} == {item["idx"] for item in crosswalks}
+    clipped_crosswalks = []
     for crosswalk in crosswalks:
         polygon = clean_points(crosswalk["points"])
         triangles = triangulate_polygon(polygon)
@@ -154,6 +164,13 @@ def main():
         stripes, stripe_width = crosswalk_stripes(
             polygon, road["points"] if road else None
         )
+        clipped, _ = crosswalk_stripes(
+            polygon, road["points"] if road else None,
+            exclude_polygons=[item["points"] for item in crosswalks if item["idx"] != crosswalk["idx"]],
+        )
+        assert len(clipped) >= 4, f"{crosswalk['idx']}: clipping removed crossing"
+        if clipped != stripes:
+            clipped_crosswalks.append(crosswalk["idx"])
         assert len(stripes) >= 4, f"{crosswalk['idx']}: too few zebra stripes"
         assert 0.0 < stripe_width < 0.75
         sx = stripes[1][0] - stripes[0][0]
@@ -181,10 +198,17 @@ def main():
             f"({actual_area} vs {expected_area})"
         )
 
+    assert set(clipped_crosswalks) == {"B3256W000312", "B3256W000319"}, clipped_crosswalks
+    horizontal = [(-5, -1, 0), (5, -1, 0), (5, 1, 0), (-5, 1, 0)]
+    vertical = [(-1, -5, 0), (1, -5, 0), (1, 5, 0), (-1, 5, 0)]
+    clipped, width = crosswalk_stripes(horizontal, exclude_polygons=[vertical])
+    assert clipped
+    assert all(abs(point[0]) >= 1 + width / 2 - 1e-9 for point in clipped)
     print(
         f"OK: {len(lanelets)} lanelets, {len(high)} high-speed unlimited, "
         f"{len(lanelets) - len(high)} at 60 km/h, "
-        f"{len(crosswalks)} crosswalk polygons, geometry valid"
+        f"{len(crosswalks)} crosswalk polygons, geometry valid; "
+        f"{len(clipped_crosswalks)} diagonal paint overlaps clipped"
     )
 
 

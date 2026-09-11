@@ -1,0 +1,4 @@
+run_id,controller,path,comparison_group,repetitions,recorded_duration_s,distance_m,cte_rms_m,max_abs_cte_m,max_speed_kph,lateral_inactive_samples,longitudinal_fallback_samples,lateral_solver_success_rate,lateral_solver_p95_ms,notes
+historical_split_full_lap,legacy_custom_mpc,raw_rddf,legacy_reference,1,182.072250,,0.074284,0.348748,58.201673,,,1.0,4.078417,"Different route/localization; do not compute improvement versus current"
+junction_audit_20260910_r1,autoware_ai_mpc,pre_junction_fix,junction_path_ab,1,182.014262,2178.779374,0.032563451,0.167728360,58.937407,0,0,,,"Same controller/localization as junction_fix"
+junction_fix_20260910_r1,autoware_ai_mpc,route_candidate_default,junction_path_ab,1,178.658199,2178.327943,0.032776679,0.166482667,58.905251,0,1,,,"Adopted route; one-lap simulator result"

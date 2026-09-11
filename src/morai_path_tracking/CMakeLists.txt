@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_filters
   message_generation
+  morai_kcity_hd_map
   morai_udp_bridge
   nav_msgs
   roscpp
@@ -16,7 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(osqp REQUIRED CONFIG)
 
-add_message_files(FILES ControllerStatus.msg RouteSpeedLimit.msg)
+add_message_files(FILES ControllerStatus.msg)
 generate_messages(DEPENDENCIES geometry_msgs std_msgs)
 
 catkin_package(
@@ -29,7 +30,7 @@ catkin_package(
             morai_mpc_controller
             morai_wheel_corridor
   CATKIN_DEPENDS geometry_msgs message_filters message_runtime
-                 morai_udp_bridge nav_msgs roscpp std_msgs tf2
+                 morai_kcity_hd_map morai_udp_bridge nav_msgs roscpp std_msgs tf2
                  tf2_geometry_msgs
 )
 
@@ -149,6 +150,20 @@ install(
 
 catkin_install_python(
   PROGRAMS scripts/analysis/analyze_tracking_bag.py
+           scripts/control/morai_control_adapter.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+# Keep the adapter helper importable from both devel and install spaces.
+file(MAKE_DIRECTORY ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_BIN_DESTINATION})
+configure_file(
+  scripts/control/steering_prediction.py
+  ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_BIN_DESTINATION}/steering_prediction.py
+  COPYONLY
+)
+
+install(
+  FILES scripts/control/steering_prediction.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -235,7 +250,7 @@ if(CATKIN_ENABLE_TESTING)
   )
   if(TARGET test_wheel_corridor)
     target_compile_features(test_wheel_corridor PUBLIC cxx_std_14)
-    target_link_libraries(test_wheel_corridor morai_wheel_corridor)
+    target_link_libraries(test_wheel_corridor morai_wheel_corridor ${catkin_LIBRARIES})
   endif()
 
   catkin_add_gtest(test_control_timing_bounds

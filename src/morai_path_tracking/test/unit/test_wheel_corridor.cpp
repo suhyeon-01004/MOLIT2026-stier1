@@ -5,9 +5,27 @@
 #include <gtest/gtest.h>
 
 #include "morai_path_tracking/planning/wheel_corridor.hpp"
+#include "morai_path_tracking/planning/map_clearance_guard.hpp"
 
 namespace morai_path_tracking {
 namespace {
+
+TEST(MapClearanceGuard, RequiresSameGenerationFrameValidityAndFiniteComputation) {
+  geometry_msgs::PointStamped map;
+  const ros::Time stamp(10, 123);
+  map.header.stamp=stamp; map.header.frame_id="map";
+  map.point.x=.3; map.point.y=1.; map.point.z=2.;
+  EXPECT_DOUBLE_EQ(.3, selectMapClearance(.1,map,stamp,"map"));
+  EXPECT_DOUBLE_EQ(.1, selectMapClearance(.1,map,ros::Time(10,124),"map"));
+  EXPECT_DOUBLE_EQ(.1, selectMapClearance(.1,map,stamp,"odom"));
+  EXPECT_DOUBLE_EQ(.1, selectMapClearance(.1,map,ros::Time(),"map"));
+  map.point.y=0.; EXPECT_DOUBLE_EQ(.1, selectMapClearance(.1,map,stamp,"map"));
+  map.point.y=1.; map.point.x=std::numeric_limits<double>::quiet_NaN();
+  EXPECT_DOUBLE_EQ(.1, selectMapClearance(.1,map,stamp,"map"));
+  map.point.x=-.05; EXPECT_DOUBLE_EQ(-.05, selectMapClearance(.1,map,stamp,"map"));
+  map.point.z=51.; EXPECT_DOUBLE_EQ(.1, selectMapClearance(.1,map,stamp,"map"));
+  map.point.z=-1.; EXPECT_DOUBLE_EQ(.1, selectMapClearance(.1,map,stamp,"map"));
+}
 
 WheelCorridorConfig competitionCorridor() {
   WheelCorridorConfig config;

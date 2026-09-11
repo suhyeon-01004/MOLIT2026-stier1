@@ -2,8 +2,10 @@
 """Build and publish a Lanelet2 route selected by the competition RDDF."""
 
 import argparse
+import hashlib
 import json
 import math
+import struct
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
@@ -418,6 +420,49 @@ def build_route(
     return route, sequence, len(lanelet_map.laneletLayer), stats
 
 
+def apply_local_candidate(route, filename):
+    """Opt-in, hash-bound XY replacement; preserve Z, order and map associations."""
+    if not filename:
+        return route
+    payload = json.loads(Path(filename).read_text())
+    digest = hashlib.sha256(b''.join(struct.pack('<dd', p[0], p[1]) for p in route)).hexdigest()
+    if payload['baseline_xy_sha256'] != digest:
+        raise ValueError('Local route candidate does not match the baseline route')
+    if ('route_window_m' in payload) == ('route_windows_m' in payload):
+        raise ValueError('Specify exactly one window format')
+    windows = payload.get('route_windows_m', [payload.get('route_window_m')])
+    limit = float(payload['maximum_displacement_m'])
+    if not isinstance(windows, list) or not 1 <= len(windows) <= 6 or not math.isfinite(limit) or not 0 < limit <= .35:
+        raise ValueError('Invalid local candidate window/displacement')
+    previous = -1.
+    for window in windows:
+        if not isinstance(window, list) or len(window) != 2:
+            raise ValueError('Invalid local candidate window')
+        lo, hi = window
+        if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in window) or not 0 < hi-lo <= 50 or lo < 0 or lo <= previous:
+            raise ValueError('Invalid/overlapping candidate windows')
+        previous = hi
+    distance = [0.0]
+    for a, b in zip(route, route[1:]):
+        distance.append(distance[-1] + math.hypot(b[0]-a[0], b[1]-a[1]))
+    corrected, seen = list(route), set()
+    for change in payload['changes']:
+        index, x, y = change['index'], float(change['x']), float(change['y'])
+        if type(index) is not int or index in seen or not 0 < index < len(route)-1:
+            raise ValueError('Invalid/duplicate candidate point index')
+        if not all(math.isfinite(v) for v in (x, y)) or not any(lo <= distance[index] <= hi for lo, hi in windows):
+            raise ValueError('Nonfinite or out-of-window candidate point')
+        if math.hypot(x-route[index][0], y-route[index][1]) > limit + 1e-9:
+            raise ValueError('Candidate exceeds its displacement limit')
+        corrected[index] = (x, y, route[index][2])
+        seen.add(index)
+    if not seen:
+        raise ValueError('Empty local route candidate')
+    if any(math.hypot(b[0]-a[0], b[1]-a[1]) <= 1e-6 for a,b in zip(corrected,corrected[1:])):
+        raise ValueError('Candidate contains a degenerate segment')
+    return corrected
+
+
 def path_length(points):
     return sum(
         math.hypot(second[0] - first[0], second[1] - first[1])
@@ -520,7 +565,7 @@ class RoutePublisher:
         import rospy
         from geometry_msgs.msg import PoseStamped
         from nav_msgs.msg import Path as PathMessage
-        from morai_path_tracking.msg import RouteSpeedLimit
+        from morai_kcity_hd_map.msg import RouteSpeedLimit
 
         self.rospy = rospy
         self.points = route[:-1] if same_point(route[0], route[-1]) else route
@@ -632,6 +677,10 @@ def ros_main():
         float(rospy.get_param("~maximum_centerline_correction_m", 0.75)),
         int(rospy.get_param("~centerline_smoothing_window_points", 31)),
     )
+    candidate_file = rospy.get_param('~local_route_candidate_file', '')
+    route = apply_local_candidate(route, candidate_file)
+    if candidate_file:
+        rospy.logwarn('Experimental local route candidate enabled: %s', candidate_file)
     RoutePublisher(route, sequence, stats)
     rospy.loginfo(
         "RDDF-selected boundary-centered Lanelet2 route: %d points, %d/%d Lanelets, "

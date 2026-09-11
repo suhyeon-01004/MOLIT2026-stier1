@@ -14,6 +14,7 @@ from mgeo_common import (
     clean_points,
     dashed_segments,
     is_high_speed,
+    is_pedestrian_crosswalk,
     load_mgeo,
     offset_polyline,
     polygon_outline,
@@ -166,10 +167,13 @@ def main():
     )
 
     crosswalk_lines, other_marking_lines = [], []
+    crosswalk_polygons = {marking["idx"]: clean_points(marking["points"])
+                          for marking in data["singlecrosswalk_set"]
+                          if is_pedestrian_crosswalk(marking)}
     crosswalk_count = 0
     for marking in data["singlecrosswalk_set"]:
         points = clean_points(marking["points"])
-        if str(marking.get("sign_type")) == "5321":
+        if is_pedestrian_crosswalk(marking):
             road = next(
                 (
                     links_by_id.get(link_id)
@@ -179,7 +183,9 @@ def main():
                 None,
             )
             stripes, _ = crosswalk_stripes(
-                points, road["points"] if road else None
+                points, road["points"] if road else None,
+                exclude_polygons=[polygon for idx, polygon in crosswalk_polygons.items()
+                                  if idx != marking["idx"]],
             )
             if not stripes:
                 rospy.logwarn("could not draw crosswalk %s", marking["idx"])

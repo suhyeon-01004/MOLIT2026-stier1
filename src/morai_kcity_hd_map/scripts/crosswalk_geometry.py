@@ -31,7 +31,21 @@ def _nearest_direction(point, polyline):
     return best[1] / norm, best[2] / norm
 
 
-def crosswalk_stripes(points, road_points=None, spacing=0.75, width=0.42):
+def _scanline_spans(polygon, transverse):
+    intersections = []
+    for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+        if abs(b[1] - a[1]) <= 1e-9:
+            continue
+        if not min(a[1], b[1]) <= transverse < max(a[1], b[1]):
+            continue
+        ratio = (transverse - a[1]) / (b[1] - a[1])
+        intersections.append(a[0] + ratio * (b[0] - a[0]))
+    intersections.sort()
+    return list(zip(intersections[::2], intersections[1::2]))
+
+
+def crosswalk_stripes(points, road_points=None, spacing=0.75, width=0.42,
+                      exclude_polygons=()):
     """Return clipped zebra bars, using the linked road to resolve their axis."""
     polygon = clean_points(points)
     if len(polygon) > 1 and distance(polygon[0], polygon[-1]) <= 1e-6:
@@ -95,20 +109,34 @@ def crosswalk_stripes(points, road_points=None, spacing=0.75, width=0.42):
     count = max(2, int((maximum - minimum) / spacing))
     step = (maximum - minimum) / count
     stripe_width = min(width, step * 0.62)
+    exclusions = [
+        [((p[0] - cx) * ux + (p[1] - cy) * uy,
+          (p[0] - cx) * vx + (p[1] - cy) * vy) for p in other]
+        for other in exclude_polygons if len(other) >= 3
+    ]
     segments = []
     for index in range(count):
         transverse = minimum + (index + 0.5) * step
-        intersections = []
-        closed = local + [local[0]]
-        for a, b in zip(closed, closed[1:]):
-            if abs(b[1] - a[1]) <= 1e-9:
-                continue
-            if not min(a[1], b[1]) <= transverse < max(a[1], b[1]):
-                continue
-            ratio = (transverse - a[1]) / (b[1] - a[1])
-            intersections.append(a[0] + ratio * (b[0] - a[0]))
-        intersections.sort()
-        for start, end in zip(intersections[::2], intersections[1::2]):
+        spans = _scanline_spans(local, transverse)
+        # Leave the shared centre of diagonal crossings unpainted; the HD-map
+        # areas stay intact. Clip paint, never cover it with a black rectangle.
+        for other in exclusions:
+            low, high = transverse - stripe_width / 2, transverse + stripe_width / 2
+            slices = [low, transverse, high]
+            slices.extend(p[1] for p in other if low < p[1] < high)
+            for sample in slices:
+                for cut_start, cut_end in _scanline_spans(other, sample):
+                    remaining = []
+                    for start, end in spans:
+                        if cut_end <= start or cut_start >= end:
+                            remaining.append((start, end))
+                        else:
+                            if start < cut_start:
+                                remaining.append((start, cut_start))
+                            if cut_end < end:
+                                remaining.append((cut_end, end))
+                    spans = remaining
+        for start, end in spans:
             if end - start <= 0.05:
                 continue
             segments.extend(

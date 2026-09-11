@@ -1,0 +1,48 @@
+<launch>
+ <arg name="send_control" default="false"/>
+ <arg name="rviz" default="true"/>
+ <arg name="route_candidate_file" default="$(find morai_kcity_hd_map)/config/route_candidate_default.json"/>
+ <arg name="use_map_guard" default="false"/>
+ <arg name="speed_limit_kph" default="60.0"/>
+ <arg name="maximum_input_speed_kph" default="62.0"/>
+ <arg name="controller_config" default="$(find morai_path_tracking)/config/controllers/molit_2026_path_tracking.yaml"/>
+ <arg name="localization_config" default="$(find morai_localization)/config/maps/molit_2026_kcity.yaml"/>
+ <arg name="autoware_config" default="$(find morai_path_tracking)/config/controllers/autoware_mpc.yaml"/>
+ <include file="$(find morai_kcity_hd_map)/launch/kcity_localization_visualization.launch">
+  <arg name="route_candidate_file" value="$(arg route_candidate_file)"/>
+  <arg name="rviz" value="$(arg rviz)"/><arg name="localization_config" value="$(arg localization_config)"/>
+ </include>
+ <rosparam command="load" file="$(arg controller_config)"/>
+ <param name="/path_tracking_controller_node/use_map_speed_limits" value="true"/>
+ <param name="/path_tracking_controller_node/target_speed_kph" value="$(arg speed_limit_kph)"/>
+ <param name="/path_tracking_controller_node/mpc_test_speed_limit_kph" value="$(arg speed_limit_kph)"/>
+ <param name="/path_tracking_controller_node/maximum_speed_kph" value="$(arg speed_limit_kph)"/>
+ <param name="/path_tracking_controller_node/hard_brake_activation_speed_kph" value="$(arg speed_limit_kph)"/>
+ <param name="/rddf_lanelet_route/high_speed_target_kph" value="$(arg speed_limit_kph)"/>
+ <param name="/rddf_lanelet_route/local_path_length_m" value="300.0"/>
+ <node pkg="morai_path_tracking" type="path_tracking_controller_node" name="path_tracking_controller_node" required="true" output="screen">
+  <param name="longitudinal_only" value="true"/>
+  <param name="use_hd_map_clearance" value="$(arg use_map_guard)"/>
+  <param name="use_map_speed_limits" value="true"/>
+  <param name="command_topic" value="/control/internal/longitudinal_command"/>
+  <param name="controller_status_topic" value="/control/internal/longitudinal_status"/>
+  <remap from="/control/actuator_command" to="/control/internal/longitudinal_command"/>
+  <remap from="/control/controller_status" to="/control/internal/longitudinal_status"/>
+ </node>
+ <node pkg="mpc_follower" type="mpc_follower" name="autoware_mpc" required="true" output="screen" clear_params="true">
+  <rosparam command="load" file="$(arg autoware_config)"/>
+  <param name="in_waypoints_name" value="/control/internal/waypoints"/>
+  <param name="in_selfpose_name" value="/control/internal/pose"/>
+  <param name="in_vehicle_status_name" value="/control/internal/vehicle_status_estimated"/>
+  <param name="out_vehicle_cmd_name" value="/control/internal/mpc_raw"/>
+  <remap from="estimate_twist" to="/control/internal/twist"/>
+  <remap from="sent_control" to="/control/internal/sent_control"/>
+ </node>
+ <node pkg="morai_path_tracking" type="morai_control_adapter.py" name="morai_control_adapter" required="true" output="screen">
+  <param name="maximum_input_speed_kph" value="$(arg maximum_input_speed_kph)"/>
+ </node>
+ <include if="$(arg send_control)" file="$(find morai_udp_bridge)/launch/control/control_sender.launch"/>
+ <node if="$(arg use_map_guard)" pkg="morai_kcity_hd_map" type="map_clearance.py" name="hd_map_clearance" required="true" output="screen">
+  <param name="route_candidate_file" value="$(arg route_candidate_file)"/>
+ </node>
+</launch>

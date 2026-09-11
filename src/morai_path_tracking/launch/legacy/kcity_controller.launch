@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- The controller always runs. UDP actuation is opt-in for safe testing. -->
+  <arg name="send_control" default="false"/>
+  <arg name="rviz" default="true"/>
+  <arg name="localization_config"
+       default="$(find morai_localization)/config/maps/molit_2026_kcity.yaml"/>
+  <arg name="controller_config"
+       default="$(find morai_path_tracking)/config/controllers/molit_2026_path_tracking.yaml"/>
+  <arg name="control_sender_config"
+       default="$(find morai_udp_bridge)/config/control/molit_2026_control.yaml"/>
+
+  <include file="$(find morai_kcity_hd_map)/launch/kcity_localization_visualization.launch">
+    <arg name="rviz" value="$(arg rviz)"/>
+    <arg name="localization_config" value="$(arg localization_config)"/>
+  </include>
+
+  <include file="$(find morai_path_tracking)/launch/controllers/legacy_controller.launch">
+    <arg name="config" value="$(arg controller_config)"/>
+  </include>
+
+  <group if="$(arg send_control)">
+    <include file="$(find morai_udp_bridge)/launch/control/control_sender.launch">
+      <arg name="config" value="$(arg control_sender_config)"/>
+    </include>
+  </group>
+</launch>

@@ -5,7 +5,7 @@ import argparse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from mgeo_common import clean_points, distance, is_high_speed, lane_bounds, load_mgeo
+from mgeo_common import clean_points, distance, is_high_speed, is_pedestrian_crosswalk, lane_bounds, load_mgeo
 
 
 SHAPE_TO_SUBTYPE = {
@@ -87,13 +87,50 @@ def midpoint(points):
     return point[0], point[1], point[2]
 
 
+def add_crosswalks(osm, markings):
+    existing = {
+        tags.get("source_id")
+        for relation in osm.root.findall("relation")
+        for tags in [{tag.attrib["k"]: tag.attrib["v"] for tag in relation.findall("tag")}]
+        if tags.get("subtype") == "crosswalk"
+    }
+    added = 0
+    for marking in markings:
+        if not is_pedestrian_crosswalk(marking) or marking["idx"] in existing:
+            continue
+        points = clean_points(marking["points"])
+        if len(points) > 2 and distance(points[0], points[-1]) > 0.01:
+            points.append(points[0])
+        outer = osm.way(points, {"type": "line_thin", "subtype": "solid", "color": "white", "source_id": marking["idx"]})
+        osm.relation(
+            [("way", outer, "outer")],
+            {"type": "multipolygon", "subtype": "crosswalk", "participant:pedestrian": "yes",
+             "source_id": marking["idx"], "source_sign_type": str(marking["sign_type"])},
+        )
+        existing.add(marking["idx"])
+        added += 1
+    return added
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default=str(Path(__file__).resolve().parents[1] / "raw_mgeo"))
     parser.add_argument("--output", default=str(Path(__file__).resolve().parents[1] / "map" / "lanelet2_map.osm"))
+    parser.add_argument("--add-missing-crosswalks", action="store_true",
+                        help="Append missing crosswalk areas to --output; preserve every existing map element")
     args = parser.parse_args()
 
     data = load_mgeo(args.input)
+    if args.add_missing_crosswalks:
+        osm = Osm()
+        osm.root = ET.parse(args.output).getroot()
+        osm.next_id = max(int(element.attrib["id"]) for element in osm.root
+                          if element.tag in {"node", "way", "relation"}) + 1
+        added = add_crosswalks(osm, data["singlecrosswalk_set"])
+        if added:
+            ET.ElementTree(osm.root).write(args.output, encoding="utf-8", xml_declaration=True)
+        print(f"added {added} missing crosswalk areas; existing map elements preserved")
+        return
     links = [link for link in data["link_set"] if not link.get("lazy_init")]
     boundaries = {boundary["idx"]: boundary for boundary in data["lane_boundary_set"]}
     osm = Osm()
@@ -185,17 +222,7 @@ def main():
         for source in controlled:
             ET.SubElement(lanelet_element_by_source[source], "member", type="relation", ref=str(relation_id), role="regulatory_element")
 
-    for marking in data["singlecrosswalk_set"]:
-        if str(marking.get("sign_type")) != "5321":
-            continue
-        points = clean_points(marking["points"])
-        if len(points) > 2 and distance(points[0], points[-1]) > 0.01:
-            points.append(points[0])
-        outer = osm.way(points, {"type": "line_thin", "subtype": "solid", "color": "white", "source_id": marking["idx"]})
-        osm.relation(
-            [("way", outer, "outer")],
-            {"type": "multipolygon", "subtype": "crosswalk", "participant:pedestrian": "yes", "source_id": marking["idx"]},
-        )
+    add_crosswalks(osm, data["singlecrosswalk_set"])
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -203,7 +230,7 @@ def main():
     print(f"wrote {output}: {len(links)} lanelets, {sum(is_high_speed(link) for link in links)} high-speed, "
           f"{len(boundaries)} boundaries, {len(stop_line_ways)} stop lines, "
           f"{len(data['traffic_light_set'])} traffic lights, "
-          f"{sum(str(item.get('sign_type')) == '5321' for item in data['singlecrosswalk_set'])} crosswalk polygons")
+          f"{sum(is_pedestrian_crosswalk(item) for item in data['singlecrosswalk_set'])} crosswalk polygons")
 
 
 if __name__ == "__main__":

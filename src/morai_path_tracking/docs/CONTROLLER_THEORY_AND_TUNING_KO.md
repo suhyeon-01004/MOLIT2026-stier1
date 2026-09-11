@@ -1,8 +1,9 @@
-# MORAI 경로 추종 제어기 이론·파라미터·튜닝 상세 안내서
+# 기존 자체 제어기 이론·파라미터·튜닝 참고서
 
-> 이 문서는 기존 Pure Pursuit/Stanley/IMM Hybrid의 상세 기준서다. 현재 기본
-> 모드는 MPC이며, MPC 비용함수·파라미터·검증 절차는
-> [MPC 통합 및 시험 안내](MPC_INTEGRATION_KO.md)를 함께 참고한다.
+> 이 문서는 정량 비교와 회귀 시험을 위해 보존한 자체 Pure Pursuit/Stanley/
+> IMM Hybrid/custom MPC 구현의 참고서다. 현재 운영 횡방향 제어기는
+> `src/vendor/autoware_ai/mpc_follower`이며 실행은 `morai_path_tracking` 패키지가
+> 통합한다. 현재 구조는 패키지 [README](../README.md)를 기준으로 한다.
 
 > 빠른 실행과 운영 점검은 패키지 루트의 `README.md`에서 먼저 확인한다. 이 문서는
 > 제어 수식, 전체 파라미터, 검증 방법과 증상별 튜닝 근거를 보존한 상세 참고서다.
@@ -127,13 +128,13 @@ roslaunch morai_bringup path_lidar.launch start_rviz:=false
 경우에만 사용한다.
 
 ```bash
-roslaunch morai_path_tracking path_tracking.launch
+roslaunch morai_path_tracking legacy_controller.launch
 ```
 
 후보 YAML을 적용하려면 원본을 직접 계속 덮어쓰기보다 별도 파일을 전달한다.
 
 ```bash
-roslaunch morai_path_tracking path_tracking.launch \
+roslaunch morai_path_tracking legacy_controller.launch \
   config:=/tmp/molit_2026_path_tracking_candidate.yaml
 ```
 
@@ -1403,7 +1404,7 @@ morai_path_tracking/
 │   │   └── longitudinal/
 │   └── planning/
 ├── launch/controllers/
-│   └── path_tracking.launch
+│   └── legacy_controller.launch
 ├── msg/
 │   └── ControllerStatus.msg
 ├── scripts/analysis/

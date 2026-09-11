@@ -115,6 +115,23 @@ Visualization Manager:
       Update Interval: 0
       Value: true
       Visual Enabled: true
+    - Alpha: 0.45
+      Class: rviz/PointCloud2
+      Color: 120; 220; 150
+      Color Transformer: FlatColor
+      Decay Time: 0.0
+      Enabled: true
+      Name: LiDAR PointCloud (toggle)
+      Position Transformer: XYZ
+      Queue Size: 3
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.04
+      Style: Points
+      Topic: /lidar3D
+      Unreliable: false
+      Use Fixed Frame: true
+      Value: true
     - Class: rviz/TF
       Enabled: true
       Frame Timeout: 15

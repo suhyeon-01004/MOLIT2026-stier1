@@ -24,6 +24,7 @@
 #include "morai_path_tracking/common/control_timing_bounds.hpp"
 #include "morai_path_tracking/planning/curvature_speed_planner.hpp"
 #include "morai_path_tracking/planning/wheel_corridor.hpp"
+#include "morai_path_tracking/planning/map_clearance_guard.hpp"
 #include "morai_path_tracking/controllers/lateral/hybrid_controller.hpp"
 #include "morai_path_tracking/controllers/lateral/mpc/mpc_lateral_controller.hpp"
 #include "morai_path_tracking/controllers/longitudinal/pid_controller.hpp"
@@ -31,11 +32,13 @@
 #include "morai_path_tracking/controllers/lateral/pure_pursuit.hpp"
 #include "morai_path_tracking/controllers/lateral/stanley_controller.hpp"
 #include "morai_path_tracking/ControllerStatus.h"
-#include "morai_path_tracking/RouteSpeedLimit.h"
+#include "morai_kcity_hd_map/RouteSpeedLimit.h"
 #include "morai_udp_bridge/ActuatorCommand.h"
 #include "morai_udp_bridge/CompetitionVehicleStatus.h"
 
 namespace morai_path_tracking {
+
+using morai_kcity_hd_map::RouteSpeedLimit;
 namespace {
 
 using XmlValue = XmlRpc::XmlRpcValue;
@@ -1013,6 +1016,8 @@ class PathTrackingControllerNode {
                                                        nav_msgs::Odometry>;
   using MapInputSyncPolicy = message_filters::sync_policies::ApproximateTime<
       nav_msgs::Path, nav_msgs::Odometry, RouteSpeedLimit>;
+  using ClearanceInputSyncPolicy = message_filters::sync_policies::ApproximateTime<
+      nav_msgs::Path, nav_msgs::Odometry, RouteSpeedLimit, geometry_msgs::PointStamped>;
 
   PathTrackingControllerNode()
       : private_node_("~"),
@@ -1034,9 +1039,13 @@ class PathTrackingControllerNode {
                 static_cast<std::uint32_t>(config_.input_sync_queue_size)),
             path_subscriber_, odometry_subscriber_) {
     private_node_.param("longitudinal_only", longitudinal_only_, false);
+    private_node_.param("use_hd_map_clearance", use_hd_map_clearance_, false);
+    if (use_hd_map_clearance_ && (!longitudinal_only_ || !config_.use_map_speed_limits)) {
+      throw std::invalid_argument("HD-map clearance experiment requires map-speed Autoware MPC mode");
+    }
     if (config_.longitudinal_mpc.maximum_speed_mps > 60.0 / 3.6 + 1e-9 &&
         !longitudinal_only_) {
-      throw std::invalid_argument("Above-60 experiment requires the opt-in Autoware comparison");
+      throw std::invalid_argument("Above-60 experiment requires the opt-in Autoware MPC mode");
     }
     if (longitudinal_only_ &&
         (config_.command_topic == "/control/actuator_command" ||
@@ -1065,6 +1074,16 @@ class PathTrackingControllerNode {
         ros::Duration(config_.maximum_input_skew_sec));
     if (config_.use_map_speed_limits) {
       map_speed_subscriber_.subscribe(node_, "/route_speed_limit", config_.input_sync_queue_size);
+      if (use_hd_map_clearance_) {
+        map_clearance_subscriber_.subscribe(node_, "/control/internal/map_clearance", config_.input_sync_queue_size);
+        clearance_input_synchronizer_.reset(new message_filters::Synchronizer<ClearanceInputSyncPolicy>(
+            ClearanceInputSyncPolicy(config_.input_sync_queue_size), path_subscriber_,
+            odometry_subscriber_, map_speed_subscriber_, map_clearance_subscriber_));
+        clearance_input_synchronizer_->setMaxIntervalDuration(ros::Duration(0.0));
+        clearance_input_synchronizer_->registerCallback(boost::bind(
+            &PathTrackingControllerNode::onClearanceSynchronizedInputs, this,
+            boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
+      } else {
       map_input_synchronizer_.reset(new message_filters::Synchronizer<MapInputSyncPolicy>(
           MapInputSyncPolicy(config_.input_sync_queue_size), path_subscriber_,
           odometry_subscriber_, map_speed_subscriber_));
@@ -1072,6 +1091,7 @@ class PathTrackingControllerNode {
       map_input_synchronizer_->registerCallback(boost::bind(
           &PathTrackingControllerNode::onMapSynchronizedInputs, this,
           boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
+      }
     } else {
       input_synchronizer_.registerCallback(
           boost::bind(&PathTrackingControllerNode::onSynchronizedInputs, this,
@@ -1092,6 +1112,14 @@ class PathTrackingControllerNode {
   }
 
  private:
+  void onClearanceSynchronizedInputs(const nav_msgs::Path::ConstPtr& path,
+                                    const nav_msgs::Odometry::ConstPtr& odometry,
+                                    const RouteSpeedLimit::ConstPtr& limit,
+                                    const geometry_msgs::PointStamped::ConstPtr& clearance) {
+    latest_map_clearance_ = clearance;
+    onMapSynchronizedInputs(path, odometry, limit);
+  }
+
   void onMapSynchronizedInputs(const nav_msgs::Path::ConstPtr& path,
                               const nav_msgs::Odometry::ConstPtr& odometry,
                               const RouteSpeedLimit::ConstPtr& limit) {
@@ -1517,9 +1545,13 @@ class PathTrackingControllerNode {
         publishSafe("INVALID_WHEEL_CORRIDOR");
         return;
       }
+      const double clearance = use_hd_map_clearance_ && latest_map_clearance_
+          ? selectMapClearance(wheel_corridor.minimum_clearance_m, *latest_map_clearance_,
+                               latest_odometry_->header.stamp, config_.expected_frame_id)
+          : wheel_corridor.minimum_clearance_m;
       const LaneClearanceSpeedLimit lane_speed_limit =
           computeLaneClearanceSpeedLimit(
-              wheel_corridor.minimum_clearance_m,
+              clearance,
               config_.curvature_speed_planner.configured_target_speed_mps,
               config_.lane_clearance_speed);
       if (!lane_speed_limit.valid) {
@@ -1873,6 +1905,7 @@ class PathTrackingControllerNode {
   ros::NodeHandle private_node_;
   ControllerConfig config_;
   bool longitudinal_only_{false};
+  bool use_hd_map_clearance_{false};
   LongitudinalPid pid_;
   LongitudinalMpc longitudinal_mpc_;
   CurvatureSpeedPlanner curvature_speed_planner_;
@@ -1891,6 +1924,9 @@ class PathTrackingControllerNode {
   message_filters::Subscriber<RouteSpeedLimit> map_speed_subscriber_;
   std::unique_ptr<message_filters::Synchronizer<MapInputSyncPolicy>> map_input_synchronizer_;
   RouteSpeedLimit::ConstPtr latest_map_speed_limit_;
+  message_filters::Subscriber<geometry_msgs::PointStamped> map_clearance_subscriber_;
+  std::unique_ptr<message_filters::Synchronizer<ClearanceInputSyncPolicy>> clearance_input_synchronizer_;
+  geometry_msgs::PointStamped::ConstPtr latest_map_clearance_;
   ros::Subscriber vehicle_status_subscriber_;
   ros::WallTimer timer_;
   nav_msgs::Path::ConstPtr latest_path_;

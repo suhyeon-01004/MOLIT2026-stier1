@@ -5,6 +5,7 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
+  message_generation
   nav_msgs
   pluginlib
   roscpp
@@ -15,11 +16,14 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
+add_message_files(FILES RouteSpeedLimit.msg)
+generate_messages(DEPENDENCIES std_msgs)
+
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES morai_kcity_status_panel
-  CATKIN_DEPENDS geometry_msgs nav_msgs pluginlib roscpp rospy rviz std_msgs
-                 visualization_msgs
+  CATKIN_DEPENDS geometry_msgs message_runtime nav_msgs pluginlib roscpp rospy
+                 rviz std_msgs visualization_msgs
 )
 
 include_directories(
@@ -40,6 +44,7 @@ target_link_libraries(morai_kcity_status_panel
 catkin_install_python(
   PROGRAMS
     scripts/build_lanelet2.py
+    scripts/map_clearance.py
     scripts/rddf_lanelet_route_node.py
     scripts/rviz_visualizer.py
     scripts/validate_map.py

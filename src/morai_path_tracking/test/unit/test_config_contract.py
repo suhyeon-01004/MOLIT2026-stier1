@@ -20,6 +20,7 @@ class PurePursuitConfigContractTest(unittest.TestCase):
             config = yaml.safe_load(stream)["path_tracking_controller_node"]
 
         expected = {
+            "longitudinal_only",
             "local_path_topic",
             "odometry_topic",
             "vehicle_status_topic",
@@ -246,6 +247,7 @@ class PurePursuitConfigContractTest(unittest.TestCase):
             "longitudinal_mpc_fallback_to_pid",
         }
         self.assertEqual(set(config), expected)
+        self.assertFalse(config["longitudinal_only"])
         self.assertEqual(config["vehicle_status_topic"], "/vehicle/competition_status")
         self.assertEqual(config["target_speed_kph"], 59.0)
         self.assertEqual(config["vehicle_width_m"], 1.892)

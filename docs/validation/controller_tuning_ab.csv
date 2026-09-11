@@ -1,0 +1,6 @@
+metric,baseline_3_run_mean,rejected_candidate_1_run,change_pct,desired_direction,result
+raw_gps_cte_rms_m,0.08534,0.06304,-26.130771,lower,improved
+high_speed_straight_steering_rate_rms_degps,2.1173,2.8389,34.081141,lower,worse
+high_curvature_yaw_error_rms_deg,2.0249,2.3839,17.729271,lower,worse
+estimated_jerk_rms_mps3,3.7285,4.5113,20.995038,lower,worse
+accel_brake_transitions_per_min,28.5228,25.9588,-8.989300,lower,improved

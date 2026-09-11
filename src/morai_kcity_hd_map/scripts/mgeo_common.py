@@ -6,6 +6,12 @@ import math
 from pathlib import Path
 
 
+def is_pedestrian_crosswalk(marking):
+    # 533 is a raised pedestrian crossing, not a generic surface marking.
+    # https://safetyzone.go.kr/mapPtl/ptl/mapMain.do (police surface-sign legend)
+    return str(marking.get("sign_type")) in {"5321", "533"}
+
+
 def load_mgeo(root):
     root = Path(root)
     names = (

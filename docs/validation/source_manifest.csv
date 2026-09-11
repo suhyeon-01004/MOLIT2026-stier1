@@ -1,0 +1,9 @@
+result,local_source,route_xy_sha256,conditions
+legacy_custom_baseline,artifacts/controller_validation/2026-09-09/summary.csv,,"2026-09-03 raw RDDF; different route/localization"
+autoware_tuning_ab,artifacts/controller_validation/2026-09-09/autoware_mpc_comparison/CURRENT_RESULT_KO.md,,"baseline n=3; rejected candidate n=1; same route XY"
+steering_stability_ab,artifacts/controller_validation/2026-09-09/autoware_mpc_comparison/continued_yaw_window/YAW_WINDOW_COMPARISON_KO.md,bea555543a66b99e91117f437a42747d92b29f8e87bb2bf865131501d01fa727,"yaw window n=3 vs n=3; same route XY; supporting design evidence"
+front_clearance_audit,artifacts/controller_validation/2026-09-09/autoware_mpc_comparison/continued_front_overhang/FRONT_OVERHANG_COMPARISON_KO.md,bea555543a66b99e91117f437a42747d92b29f8e87bb2bf865131501d01fa727,"front-point OFF n=3 vs rejected ON n=2; estimated geometry"
+legacy_realtime_reference,artifacts/controller_validation/2026-09-09/REPORT_KO.md,,"legacy controller solver timing; not current Autoware end-to-end latency"
+junction_before,artifacts/controller_validation/2026-09-09/team_demo/junction_audit_20260910_r1,152dd9bcaf89f347fc135c2d66c6fd751e3999400e3d0e8bf4a2ce802b6f0cc7,"60 km/h cap; n=1; Manual-I-P reset"
+junction_after,artifacts/controller_validation/2026-09-09/team_demo/junction_fix_20260910_r1,3679bd3f97e2b2cc644e512f10670a2710d27baa6a2e528512a7d26b248b94e0,"60 km/h cap; n=1; Manual-I-P reset"
+junction_comparison,artifacts/controller_validation/2026-09-10/merge_correction/junction_fix_live_comparison.json,,"analysis source for curated junction table"
