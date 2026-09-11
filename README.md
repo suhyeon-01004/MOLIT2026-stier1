@@ -4,6 +4,16 @@ ROS1 Noetic과 MORAI `25.S4.MolitComp03`용 자율주행 워크스페이스다. 
 K-City MGeo/Lanelet2 중심선으로 보정해 경로를 만들고, GPS·IMU·Competition
 Vehicle Status로 상태를 추정해 Autoware AI 기반 MPC로 추종한다.
 
+## 나의 역할
+
+- **담당:** 전체 시스템 구조 정리, UDP–ROS 연결, GPS·IMU 로컬라이제이션, 경로 추종 제어기 비교 및 튜닝
+- **직접 수행:** MORAI 네트워크 입력부터 위치 추정, 경로, 제어 명령까지 이어지는 데이터 흐름과 노드 인터페이스 구성
+- **제어:** Pure Pursuit·Stanley·MPC를 구현하고 시뮬레이션 결과를 비교했으며, 반복 주행 데이터를 바탕으로 파라미터 조정
+- **현재 구성:** Autoware AI 기반 MPC와 프로젝트용 안전 제한·종방향 제어를 연결해 사용
+- **사용 기술:** ROS1 Noetic, Python, C++, MORAI, GPS/IMU, Lanelet2, RViz, MPC
+
+이 저장소는 팀 프로젝트 코드와 라이선스를 보존한 외부 Autoware 패키지를 함께 포함합니다. 외부 패키지와 팀원이 맡은 기능은 개인 구현 범위에 포함하지 않습니다.
+
 ## 정량 성과
 
 MORAI K-City, 속도 상한 60 km/h에서 동일 제어기·로컬라이제이션을 유지하고
