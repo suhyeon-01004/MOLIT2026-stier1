@@ -11,3 +11,5 @@ Portfolio metrics: PASS (35 rows; adopted 18, supporting-design 13, rejected 4)
 Metric formulas: PASS (raw change and direction-normalized improvement recalculated)
 Evidence links: PASS (all CSV source paths and README relative links exist)
 Safety wording: estimated body/front-axle clearance is documented as an audit, not a guarantee
+Development run table: PASS (3 initial full laps and 1 final full lap; same analyzer fields)
+Development progress: PASS (18 metrics; mean/worst improvement formulas recalculated)

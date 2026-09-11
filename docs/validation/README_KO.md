@@ -1,14 +1,49 @@
 # 시뮬레이터 정량 검증 요약
 
-이 문서는 자소서·포트폴리오에 인용할 수 있도록 채택 결과와 실패한 후보를 분리해
-정리한다. 원본 rosbag, resolved YAML, 로그와 전체 시계열은 로컬 `artifacts/`에
-보존한다. 아래 개선율은 같은 제어 설정에서 경로만 바꾼 junction A/B에 한해서만
-주장한다.
+이 문서는 자소서·포트폴리오에 인용할 수 있도록 전체 개발 전후 결과, 통제 A/B,
+실패한 후보를 분리해 정리한다. 원본 rosbag, resolved YAML, 로그와 전체 시계열은
+로컬 `artifacts/`에 보존한다. 전체 개발 전후 수치는 제어기·로컬라이제이션·경로가
+함께 바뀐 결과이고, 아래 junction A/B만 같은 제어 설정에서 경로만 바꾼 비교다.
 
 전체 정량값은 [portfolio_metrics.csv](portfolio_metrics.csv)에 `raw_change_pct`와
 좋은 방향을 양수로 통일한 `improvement_pct`를 함께 기록했다. `status=adopted`는
 현재 경로에 반영된 결과, `supporting_design`은 현재 설계 방향을 결정한 반복시험,
 `rejected`는 안전성이나 안정성이 나빠져 폐기한 후보를 뜻한다.
+
+## 개발 초기 미튜닝 MPC → 최종 채택 상태
+
+초기 미튜닝 Autoware MPC의 독립 완주 3회와 최종 채택 상태 1회를 동일 분석 코드로
+재계산했다. `초기 최악`은 동일한 한 주행이 아니라 각 지표별 초기 3회 중 가장 나쁜
+값이다. 개선율은 초기 3회 평균 대비이며, 최악 대비 개선율도 CSV에 함께 남겼다.
+
+| 지표 | 초기 3회 평균 | 초기 최악 | 최종 | 평균 대비 개선 | 최악 대비 개선 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| raw-GPS CTE RMS | 0.08534 m | 0.08632 m | 0.05872 m | **31.19%** | 31.97% |
+| raw-GPS CTE p95 | 0.16871 m | 0.17098 m | 0.11417 m | **32.33%** | 33.23% |
+| localized-pose CTE RMS | 0.08534 m | 0.08631 m | 0.03195 m | **62.56%** | 62.98% |
+| localized-pose CTE p95 | 0.16870 m | 0.17093 m | 0.07307 m | **56.69%** | 57.25% |
+| 고속 직선 CTE RMS | 0.05799 m | 0.05985 m | 0.01360 m | **76.55%** | 77.28% |
+| 고속 직선 heading RMS | 0.3581° | 0.3828° | 0.1024° | **71.40%** | 73.24% |
+| raw-GPS heading RMS | 1.0079° | 1.0190° | 0.6871° | **31.83%** | 32.57% |
+| 고속 직선 yaw-rate RMS | 1.5401°/s | 1.6058°/s | 1.1240°/s | **27.02%** | 30.01% |
+| 고속 직선 조향 변화율 RMS | 2.1173°/s | 2.1534°/s | 1.5591°/s | **26.37%** | 27.60% |
+| 고속 직선 1초 조향 진폭 p95 | 0.9834° | 1.0532° | 0.6311° | **35.82%** | 40.08% |
+| 고속 직선 CTE 2 cm 교차 횟수 | 130.3회 | 138회 | 6회 | **95.40%** | 95.65% |
+| 가속-제동 명령 전환 빈도 | 28.52회/min | 29.22회/min | 19.58회/min | **31.35%** | 32.98% |
+| 추정 jerk RMS | 3.7285 m/s³ | 3.8681 m/s³ | 1.6352 m/s³ | **56.14%** | 57.73% |
+| 평균 속도 | 42.478 km/h | 42.356 km/h | 43.894 km/h | **3.33%** | 3.63% |
+| 기록 완주 시간 | 186.069 s | 186.572 s | 178.658 s | **3.98%** | 4.24% |
+
+raw-GPS CTE RMS `31.19%` 개선을 상태추정 필터 영향이 비교적 적은 대표 추종 수치로
+사용한다. localized-pose CTE RMS `62.56%`에는 GPS 계단 변화 보완 등 로컬라이제이션
+개선도 포함된다. 다만 raw GPS도 양자화되어 있고 경로 자체가 변경됐으므로 순수 MPC
+게인 효과는 아니다. 최종 경로 길이는 초기 3회 평균보다 `0.78%` 짧아 기록 단축에는
+경로 길이 차이도 일부 포함된다.
+
+따라서 이 결과는 “초기 스택에서 최종 스택까지의 end-to-end 개선”으로 인용하고,
+개별 변경의 효과는 아래 동일 경로 3회 대 3회 또는 동일 설정 경로 A/B로 구분한다.
+실행별 원자료는 [development_runs.csv](development_runs.csv), 계산된 18개 지표는
+[development_progress.csv](development_progress.csv)에 있다.
 
 ## 한눈에 보는 결과
 
@@ -173,5 +208,6 @@ errors, 0 failures`였다. 별도 합성 ROS 계약시험에서 pose·속도·ya
 수치 원본 경로와 route hash는 [source_manifest.csv](source_manifest.csv), 표 데이터는
 [full_lap_summary.csv](full_lap_summary.csv), [junction_path_ab.csv](junction_path_ab.csv),
 [controller_tuning_ab.csv](controller_tuning_ab.csv), 전체 포트폴리오 지표는
-[portfolio_metrics.csv](portfolio_metrics.csv)에 있다. 빌드·시험 결과는
+[portfolio_metrics.csv](portfolio_metrics.csv), 전체 개발 전후 값은
+[development_progress.csv](development_progress.csv)에 있다. 빌드·시험 결과는
 [verification_20260911.txt](verification_20260911.txt)에 별도로 고정했다.

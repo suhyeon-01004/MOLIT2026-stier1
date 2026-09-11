@@ -1,4 +1,7 @@
 result,local_source,route_xy_sha256,conditions
+development_initial_runs,artifacts/controller_validation/2026-09-09/autoware_mpc_comparison/baseline_r1/metrics.json;artifacts/controller_validation/2026-09-09/autoware_mpc_comparison/baseline_r2/metrics.json;artifacts/controller_validation/2026-09-09/autoware_mpc_comparison/baseline_r3/metrics.json,bea555543a66b99e91117f437a42747d92b29f8e87bb2bf865131501d01fa727,"initial untuned Autoware; 3 full laps; 60 km/h class"
+development_final_run,artifacts/controller_validation/2026-09-09/team_demo/junction_fix_20260910_r1/metrics.json,3679bd3f97e2b2cc644e512f10670a2710d27baa6a2e528512a7d26b248b94e0,"final adopted stack; 1 full lap; same analyzer rerun"
+development_public_tables,docs/validation/development_runs.csv;docs/validation/development_progress.csv,,"Git-tracked per-run inputs and calculated progress table"
 legacy_custom_baseline,artifacts/controller_validation/2026-09-09/summary.csv,,"2026-09-03 raw RDDF; different route/localization"
 autoware_tuning_ab,artifacts/controller_validation/2026-09-09/autoware_mpc_comparison/CURRENT_RESULT_KO.md,,"baseline n=3; rejected candidate n=1; same route XY"
 steering_stability_ab,artifacts/controller_validation/2026-09-09/autoware_mpc_comparison/continued_yaw_window/YAW_WINDOW_COMPARISON_KO.md,bea555543a66b99e91117f437a42747d92b29f8e87bb2bf865131501d01fa727,"yaw window n=3 vs n=3; same route XY; supporting design evidence"
